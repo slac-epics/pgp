@@ -1,5 +1,7 @@
 ##include "base.dbd"
-device(longin,  INST_IO, devPGPlin,  "PGP")
-device(longout, INST_IO, devBGPlout, "PGP")
+device(longin,   INST_IO, devPGPlin,  "PGP")
+device(longout,  INST_IO, devPGPlout, "PGP")
+device(waveform, INST_IO, devPGPwave, "PGP")
 driver("drvPGP")
+function(PGPDoConfigure)
 registrar(drvPGPRegister)
