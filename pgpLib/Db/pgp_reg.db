@@ -1,1 +1,16 @@
 # A single register pair: $(REG) and $(REG)_RBV
+
+record(longout,"$(BASE):${REG}")
+{
+   field(DESC, "PGP Register")
+   field(DTYP, "PGP")
+   field(VAL,  "${DEFAULT}")
+   field(OUT,  "@${BOX} ${LANE} ${VC} ${ADDR} ${SEQ}")
+}
+
+record(longin,"$(BASE):${REG}_RBV")
+{
+   field(DESC, "PGP Register")
+   field(DTYP, "PGP")
+   field(INP,  "@${BOX} ${SEQ}")
+}

@@ -1,1 +1,23 @@
 # The RAW data record and DO_CONFIG record.
+
+record(waveform, "${BASE}:RAW")
+{
+   field(SCAN, "I/O Intr")
+   field(DESC, "PGP waveform record")
+   field(DTYP, "PGP")
+   field(NELM, "2048")
+   field(FTVL, "LONG")
+   field(INP,  "@${BOX} ${LANE} ${VC} DATA")
+   field(TSE,  "-2")
+   field(FLNK, "${DATALNK}")
+}
+
+record(aSub,  "${BASE}:DO_CONFIG")
+{
+  field(DESC,  "Configure PGPCARD")
+  field(SCAN,  "Passive")
+  field(SNAM,  "PGPDoConfigure")
+  field(A,     "${BOX}")
+  field(FTA,   "STRING")
+  field(TSE,   "-2")
+}
