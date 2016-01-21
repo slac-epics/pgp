@@ -10,25 +10,20 @@ include $(TOP)/configure/CONFIG
 #----------------------------------------------------
 # Create and install (or just install)
 # databases, templates, substitutions like this
-# DB += ipimb.db
-DB += ipimb.db
-DB += ipimb_iocAdmin.db
+# DB += pgp.db
+DB += pgp_common.db
+DB += pgp_reg.db
 
 #----------------------------------------------------
 # Create and install (or just install)
 # Autosave request files, templates, substitutions like this
-# REQ += autosave_ipimb.req
-REQ += autosave_ipimb.req
+# REQ += autosave_pgp.req
+REQ += autosave_pgp_reg.req
 
 #----------------------------------------------------
 # Create and install (or just install)
 # Archive files, templates, substitutions like this
-# ARCHIVE += archive_ipimb.archive
-ARCHIVE += archive_ipimb.tpl-arch
-ARCHIVE += archive_ipimbIoc.archive
-
-# Nothing to build for autosave, just install from $AUTOSAVE/db
-DB_INSTALLS += $(AUTOSAVE)/db/save_restoreStatus.db
+# ARCHIVE += archive_pgp.archive
 
 include $(TOP)/configure/RULES
 #----------------------------------------

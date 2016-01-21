@@ -1,0 +1,6 @@
+Much of this code comes from the DAQ, albeit with a few modifications:
+    - The constructor for Pgp used to take a file descriptor, now it 
+      takes the port/lane information and opens the file itself.
+    - The static _fd and _portOffset fields were removed from
+      RegisterSlaveExportFrame.  Now, the Pgp class is passed in, permitting
+      more than one open Pgp card at a time.
