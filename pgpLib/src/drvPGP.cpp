@@ -38,14 +38,10 @@ static int PGPHandlerThread(void *p);
 
 class PGPCARD {
 public:
-    enum Params { CFGINC = 10 };
+    enum Params { CFGINC = 10, SRCINC = 10 };
     ELLNODE node;
     char *name;
-    epicsUInt32 *trig;
-    epicsUInt32 *gen;
-    DBADDR addr;
     Pgp *pgp;
-    IOSCANPVT ioscan;
     int cfgpipe[2];
     int cfgsize;
     int cfgmax;
@@ -56,22 +52,19 @@ public:
         int vc;
         unsigned addr;
     } *cfg;
+    int srcsize;
+    int srcmax;
+    struct srchandler {
+        int lane;
+        int vc;
+        IOSCANPVT ioscan;
+        DBADDR trigenable;
+        void (*rcvfunc)(void *, int);
+    } *src;
 
-    PGPCARD(char *_name, int _lane, char *_trigger, char *_enable) {
+    PGPCARD(char *_name, int _lane) {
         name = epicsStrDup(_name);
-        if (dbNameToAddr(_trigger, &addr)) {
-            printf("No PV trigger named %s!\n", _trigger);
-            epicsThreadSuspendSelf();
-        }
-        trig = (epicsUInt32 *) addr.pfield;
-        gen = trig + MAX_EV_TRIGGERS;
-        printf("Found PV trigger for PGP %s\n", name);
-        if (dbNameToAddr(_enable, &addr)) {
-            printf("No PV trigger enable named %s!\n", _enable);
-            epicsThreadSuspendSelf();
-        }
         pgp = new Pgp(_lane);
-        scanIoInit(&ioscan);
         if (pipe(cfgpipe) == -1) {
             printf("pipe creation failed!\n");
             epicsThreadSuspendSelf();
@@ -79,6 +72,9 @@ public:
         cfgsize = CFGINC;
         cfgmax  = -1;
         cfg = (struct cfgelem *)malloc(CFGINC*sizeof(struct cfgelem));
+        srcsize = SRCINC;
+        srcmax  = -1;
+        src = (struct srchandler *)malloc(SRCINC*sizeof(struct srchandler));
         epicsThreadMustCreate("PGPHandler", epicsThreadPriorityHigh,
                               epicsThreadGetStackSize(epicsThreadStackMedium),
                               (EPICSTHREADFUNC)PGPHandlerThread,this);
@@ -111,10 +107,38 @@ public:
         cfg[seq].lane = lane;
         cfg[seq].vc = vc;
     }
+    void addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int)) {
+        if (srcmax == srcsize) {
+            srcsize += SRCINC;
+            src = (struct srchandler *)realloc(src, srcsize*sizeof(struct srchandler));
+        }
+        src[srcmax].lane = lane;
+        src[srcmax].vc   = vc;
+        src[srcmax].rcvfunc = rcvfunc;
+        scanIoInit(&src[srcmax].ioscan);
+        if (dbNameToAddr(trigger, &src[srcmax].trigenable)) {
+            printf("No PV trigger named %s!\n", trigger);
+            return;
+        }
+        srcmax++;
+    }
+    int findSrc(int lane, int vc) {
+        int i;
+        for (i = 0; i < srcmax; i++) {
+            if (src[i].lane == lane && src[i].vc == vc)
+                return i;
+        }
+        return -1;
+    }
     void configure(struct aSubRecord *r) {
         r->pact = TRUE;
         write(cfgpipe[1], &r, sizeof(r));  // Wake up the thread, and tell him who is calling!
     }
+};
+
+struct pgp_wf_info {
+    PGPCARD *pgp;
+    int      srcidx;
 };
 
 static int PGPHandlerThread(void *p)
@@ -144,7 +168,7 @@ static int PGPHandlerThread(void *p)
             /* MCB - Re-process cfgrec! */
         }
         if (FD_ISSET(pgpfd, &fds)) {
-            /* MCB - Read some data! */
+            /* MCB - Read some data and pass it to the correct handler! */
         }
     }
     return 0; // Never gets here!
@@ -166,7 +190,18 @@ PGPCARD *pgpFindDeviceByName(char * name)
     return pdevice;
 }
 
-void PgpRegister(char *name, int lane, char *trigger, char *enable)
+void PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)(void *, int))
+{
+    PGPCARD  *pdevice = pgpFindDeviceByName(pgp);
+
+    if (!pdevice) {
+        printf("No PGP card named %s!\n", pgp);
+        return;
+    }
+    pdevice->addSrc(lane, vc, trigger, rcvfunc);
+}
+
+void PgpRegister(char *name, int lane)
 {
     PGPCARD  *pdevice = NULL;
 
@@ -175,7 +210,7 @@ void PgpRegister(char *name, int lane, char *trigger, char *enable)
         epicsThreadSuspendSelf();
     }
 
-    pdevice = new PGPCARD(name, lane, trigger, enable);
+    pdevice = new PGPCARD(name, lane);
 
     epicsMutexLock(PGPlock);
     ellAdd(&PGPCards, (ELLNODE *)pdevice);
@@ -261,8 +296,9 @@ static long init_wf_record(void* record)
 {
     waveformRecord* r = reinterpret_cast<waveformRecord*>(record);
     char boxname[MAX_CA_STRING_SIZE], data[MAX_CA_STRING_SIZE];
-    int lane, vc;
+    int lane, vc, i;
     PGPCARD *pgp = NULL;
+    struct pgp_wf_info *info = NULL;
 
     if (r->inp.type != INST_IO) {
         recGblRecordError(S_db_badField, (void *)r, "devPGP init_wf_record, Illegal INP");
@@ -281,7 +317,15 @@ static long init_wf_record(void* record)
         r->pact=TRUE;
         return -1;
     }
-    r->dpvt = (void *)pgp;
+    i = pgp->findSrc(lane, vc);
+    if (i >= 0) {
+        info = (struct pgp_wf_info *)malloc(sizeof(struct pgp_wf_info));
+        info->pgp = pgp;
+        info->srcidx = i;
+        r->dpvt = (void *)info;
+    } else {
+        printf("Cannot find data source for record %s (lane %d, vc %d)!\n", r->name, lane, vc);
+    }
     return 0;
 }
 
@@ -307,8 +351,10 @@ static long read_wf(void *record)
 static long get_wf_ioint(int cmd, void *record, IOSCANPVT *iopvt)
 {
     waveformRecord* r = reinterpret_cast<waveformRecord*>(record);
-    PGPCARD *pgp = (PGPCARD *)r->dpvt;
-    *iopvt = pgp->ioscan;
+    struct pgp_wf_info *info = (struct pgp_wf_info *)r->dpvt;
+    if (!info)
+        return -1;
+    *iopvt = info->pgp->src[info->srcidx].ioscan;
     return 0;
 }
 
@@ -396,19 +442,15 @@ epicsExportAddress(dset, devPGPwave);
 /* iocsh command: PgpRegister */
 static const iocshArg PgpRegisterArg0 = {"name"   ,    iocshArgString};
 static const iocshArg PgpRegisterArg1 = {"lane"   ,    iocshArgInt};
-static const iocshArg PgpRegisterArg2 = {"trigger",    iocshArgString};
-static const iocshArg PgpRegisterArg3 = {"trigenable", iocshArgString};
-static const iocshArg *const PgpRegisterArgs[4] = {
+static const iocshArg *const PgpRegisterArgs[2] = {
     &PgpRegisterArg0,
     &PgpRegisterArg1,
-    &PgpRegisterArg2,
-    &PgpRegisterArg3,
 };
-static const iocshFuncDef PgpRegisterDef = {"PgpRegister", 4, PgpRegisterArgs};
+static const iocshFuncDef PgpRegisterDef = {"PgpRegister", 2, PgpRegisterArgs};
 
 static void PgpRegisterCall(const iocshArgBuf * args)
 {
-    PgpRegister(args[0].sval, args[1].ival, args[2].sval, args[3].sval);
+    PgpRegister(args[0].sval, args[1].ival);
 }
 
 /* Registration APIs */
