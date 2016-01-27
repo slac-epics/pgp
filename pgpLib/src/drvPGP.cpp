@@ -59,7 +59,8 @@ public:
         int vc;
         IOSCANPVT ioscan;
         DBADDR trigenable;
-        void (*rcvfunc)(void *, int);
+        void (*rcvfunc)(void *, int, void *);
+        void *user;
     } *src;
 
     PGPCARD(char *_name, int _lane) {
@@ -107,20 +108,21 @@ public:
         cfg[seq].lane = lane;
         cfg[seq].vc = vc;
     }
-    void addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int)) {
+    IOSCANPVT *addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user) {
         if (srcmax == srcsize) {
             srcsize += SRCINC;
             src = (struct srchandler *)realloc(src, srcsize*sizeof(struct srchandler));
         }
-        src[srcmax].lane = lane;
-        src[srcmax].vc   = vc;
+        src[srcmax].lane    = lane;
+        src[srcmax].vc      = vc;
         src[srcmax].rcvfunc = rcvfunc;
+        src[srcmax].user    = user;
         scanIoInit(&src[srcmax].ioscan);
         if (dbNameToAddr(trigger, &src[srcmax].trigenable)) {
             printf("No PV trigger named %s!\n", trigger);
-            return;
-        }
-        srcmax++;
+            return NULL;
+        } else
+            return &src[srcmax++].ioscan;
     }
     int findSrc(int lane, int vc) {
         int i;
@@ -190,15 +192,15 @@ PGPCARD *pgpFindDeviceByName(char * name)
     return pdevice;
 }
 
-void PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)(void *, int))
+IOSCANPVT *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user)
 {
     PGPCARD  *pdevice = pgpFindDeviceByName(pgp);
 
     if (!pdevice) {
         printf("No PGP card named %s!\n", pgp);
-        return;
+        return NULL;
     }
-    pdevice->addSrc(lane, vc, trigger, rcvfunc);
+    return pdevice->addSrc(lane, vc, trigger, rcvfunc, user);
 }
 
 void PgpRegister(char *name, int lane)

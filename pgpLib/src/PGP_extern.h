@@ -1,3 +1,5 @@
+#include<dbScan.h>
+
 extern "C" {
-void PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)());
+    IOSCANPVT *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user);
 };
