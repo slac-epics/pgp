@@ -24,6 +24,7 @@
 #include"evrTime.h"
 #include"pds/pgp/Pgp.hh"
 #include<sys/select.h>
+#include"PGP_extern.h"
 
 #define MAX_CA_STRING_SIZE 40
 
@@ -35,6 +36,19 @@ static ELLLIST PGPCards = {{ NULL, NULL }, 0};
 static epicsMutexId PGPlock = NULL;
 
 static int PGPHandlerThread(void *p);
+
+class PGPCARD;
+
+struct srchandler {
+    PGPCARD *pgp;
+    int lane;
+    int vc;
+    IOSCANPVT ioscan;
+    DBADDR trigenable;
+    void (*rcvfunc)(void *, int, void *);
+    void *user;
+    pgp_data *data;
+};
 
 class PGPCARD {
 public:
@@ -54,14 +68,7 @@ public:
     } *cfg;
     int srcsize;
     int srcmax;
-    struct srchandler {
-        int lane;
-        int vc;
-        IOSCANPVT ioscan;
-        DBADDR trigenable;
-        void (*rcvfunc)(void *, int, void *);
-        void *user;
-    } *src;
+    struct srchandler *src;
 
     PGPCARD(char *_name, int _lane) {
         name = epicsStrDup(_name);
@@ -108,21 +115,23 @@ public:
         cfg[seq].lane = lane;
         cfg[seq].vc = vc;
     }
-    IOSCANPVT *addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user) {
+    void *addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user) {
         if (srcmax == srcsize) {
             srcsize += SRCINC;
             src = (struct srchandler *)realloc(src, srcsize*sizeof(struct srchandler));
         }
+        src[srcmax].pgp     = this;
         src[srcmax].lane    = lane;
         src[srcmax].vc      = vc;
         src[srcmax].rcvfunc = rcvfunc;
         src[srcmax].user    = user;
+        src[srcmax].data    = NULL;
         scanIoInit(&src[srcmax].ioscan);
         if (dbNameToAddr(trigger, &src[srcmax].trigenable)) {
             printf("No PV trigger named %s!\n", trigger);
             return NULL;
         } else
-            return &src[srcmax++].ioscan;
+            return (void *)&src[srcmax++];
     }
     int findSrc(int lane, int vc) {
         int i;
@@ -136,11 +145,6 @@ public:
         r->pact = TRUE;
         write(cfgpipe[1], &r, sizeof(r));  // Wake up the thread, and tell him who is calling!
     }
-};
-
-struct pgp_wf_info {
-    PGPCARD *pgp;
-    int      srcidx;
 };
 
 static int PGPHandlerThread(void *p)
@@ -192,7 +196,7 @@ PGPCARD *pgpFindDeviceByName(char * name)
     return pdevice;
 }
 
-IOSCANPVT *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user)
+void *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user)
 {
     PGPCARD  *pdevice = pgpFindDeviceByName(pgp);
 
@@ -201,6 +205,12 @@ IOSCANPVT *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, 
         return NULL;
     }
     return pdevice->addSrc(lane, vc, trigger, rcvfunc, user);
+}
+
+void PGP_receive_data(void *p, pgp_data *data) {
+    struct srchandler *src = (struct srchandler *)p;
+    src->data = data;
+    scanIoRequest(src->ioscan);
 }
 
 void PgpRegister(char *name, int lane)
@@ -221,13 +231,13 @@ void PgpRegister(char *name, int lane)
 
 epicsStatus PgpReport(int level)
 {
-    /* MCB - Print some debug stuff. */
+    /* Print some debug stuff. */
     return 0;
 }
 
 void PgpShutdownFunc (void *arg)
 {
-    /* MCB - Shutdown all cards! */
+    /* Shutdown all cards! */
 }
 
 epicsStatus PgpInit (void)
@@ -300,7 +310,6 @@ static long init_wf_record(void* record)
     char boxname[MAX_CA_STRING_SIZE], data[MAX_CA_STRING_SIZE];
     int lane, vc, i;
     PGPCARD *pgp = NULL;
-    struct pgp_wf_info *info = NULL;
 
     if (r->inp.type != INST_IO) {
         recGblRecordError(S_db_badField, (void *)r, "devPGP init_wf_record, Illegal INP");
@@ -321,12 +330,10 @@ static long init_wf_record(void* record)
     }
     i = pgp->findSrc(lane, vc);
     if (i >= 0) {
-        info = (struct pgp_wf_info *)malloc(sizeof(struct pgp_wf_info));
-        info->pgp = pgp;
-        info->srcidx = i;
-        r->dpvt = (void *)info;
+        r->dpvt = (void *)&pgp->src[i];
     } else {
         printf("Cannot find data source for record %s (lane %d, vc %d)!\n", r->name, lane, vc);
+        r->dpvt = NULL;
     }
     return 0;
 }
@@ -346,17 +353,27 @@ static long write_lo(void* record)
 static long read_wf(void *record)
 {
     waveformRecord* r = reinterpret_cast<waveformRecord*>(record);
-    /* MCB - Read the waveform? */
+    struct srchandler *src = (struct srchandler *)r->dpvt;
+    if (!src || !src->data) {
+        r->nsta = UDF_ALARM;
+        r->nsev = INVALID_ALARM;
+        return -1;
+    }
+    memcpy(r->bptr, src->data->data, src->data->size * sizeof(unsigned));
+    r->nord = src->data->size;
+    r->udf = FALSE;
+    r->time = src->data->time;
+    src->data = NULL;
     return 0;
 }
 
 static long get_wf_ioint(int cmd, void *record, IOSCANPVT *iopvt)
 {
     waveformRecord* r = reinterpret_cast<waveformRecord*>(record);
-    struct pgp_wf_info *info = (struct pgp_wf_info *)r->dpvt;
-    if (!info)
+    struct srchandler *src = (struct srchandler *)r->dpvt;
+    if (!src)
         return -1;
-    *iopvt = info->pgp->src[info->srcidx].ioscan;
+    *iopvt = src->ioscan;
     return 0;
 }
 
