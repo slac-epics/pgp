@@ -12,12 +12,19 @@ record(waveform, "${BASE}:RAW")
    field(FLNK, "${DATALNK}")
 }
 
+record(stringout, "${BASE}:BOX")
+{
+  field(DESC,  "PGPCARD name")
+  field(SCAN,  "Passive")
+  field(VAL,   "${BOX}")
+}
+
 record(aSub,  "${BASE}:DO_CONFIG")
 {
   field(DESC,  "Configure PGPCARD")
   field(SCAN,  "Passive")
   field(SNAM,  "PGPDoConfigure")
-  field(A,     "${BOX}")
+  field(INPA,  "${BASE}:BOX")
   field(FTA,   "STRING")
   field(TSE,   "-2")
 }

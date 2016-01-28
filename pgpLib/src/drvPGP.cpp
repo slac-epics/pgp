@@ -11,7 +11,8 @@
 #include<link.h>
 #include<dbAccess.h>
 #include<dbScan.h>
-#include<aSubRecord2.h>  // Sigh.  A copy of aSubRecord.h, with not -> not2 so it is legal C++
+#include<dbEvent.h>
+#include<aSubRecord2.h>  // Sigh.  A copy of aSubRecord.h, with not -> not2 so it is legal C++.
 #include<longinRecord.h>
 #include<longoutRecord.h>
 #include<waveformRecord.h>
@@ -66,12 +67,15 @@ public:
         int lane;
         int vc;
         unsigned addr;
+        Destination dest;
     } *cfg;
+    enum CfgState { CfgIdle, CfgActive, CfgDone} cfgstate;
     int srcsize;
     int srcmax;
     struct srchandler *src;
 
     PGPCARD(char *_name, int _lane) {
+        cfgstate = CfgIdle;
         name = epicsStrDup(_name);
         pgp = new Pgp(_lane);
         if (pipe(cfgpipe) == -1) {
@@ -82,7 +86,7 @@ public:
         cfgmax  = -1;
         cfg = (struct cfgelem *)malloc(CFGINC*sizeof(struct cfgelem));
         srcsize = SRCINC;
-        srcmax  = -1;
+        srcmax  = 0;
         src = (struct srchandler *)malloc(SRCINC*sizeof(struct srchandler));
         epicsThreadMustCreate("PGPHandler", epicsThreadPriorityHigh,
                               epicsThreadGetStackSize(epicsThreadStackMedium),
@@ -115,6 +119,7 @@ public:
         cfg[seq].val = r;
         cfg[seq].lane = lane;
         cfg[seq].vc = vc;
+        cfg[seq].dest = Destination((lane << 2) | (vc & 3));
     }
     void *addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user) {
         if (srcmax == srcsize) {
@@ -143,28 +148,50 @@ public:
         return -1;
     }
     void configure(struct aSubRecord *r) {
-        r->pact = TRUE;
-        write(cfgpipe[1], &r, sizeof(r));  // Wake up the thread, and tell him who is calling!
+        switch (cfgstate) {
+        case CfgIdle:
+            cfgstate = CfgActive;              // Start configuring!
+            r->pact = TRUE;
+            write(cfgpipe[1], &r, sizeof(r));  // Wake up the thread, and tell him who is calling!
+            break;
+        case CfgActive:
+            break;                             // Do nothing!
+        case CfgDone:
+            cfgstate = CfgIdle;                // Finished!
+            break;
+        }
     }
     void disableTriggers(void) {
         int i;
         epicsEnum16 enable = 1;
+        printf("disableTriggers\n");
         for (i = 0; i < srcmax; i++) {
             src[i].trigstate = *(epicsEnum16 *)src[i].trigenable.pfield;
             dbPutField(&src[i].trigenable, DBR_ENUM, &enable, sizeof(enable));
         }
+        printf("disableTriggers done!\n");
     }
     void enableTriggers(void) {
         int i;
+        printf("enableTriggers\n");
         for (i = 0; i < srcmax; i++) {
             dbPutField(&src[i].trigenable, DBR_ENUM, &src[i].trigstate, sizeof(src[i].trigstate));
         }
+        printf("enableTriggers done!\n");
     }
     void doConfigure(void) {
         int i;
+        unsigned val;
+        printf("doConfigure\n");
         for (i = 0; i < cfgmax; i++) {
-            /* MCB */
+            pgp->writeRegister(&cfg[i].dest, cfg[i].addr, cfg[i].val->val, true, PgpRSBits::Waiting);
         }
+        for (i = 0; i < cfgmax; i++) {
+            pgp->readRegister(&cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, true);
+            cfg[i].rbv->val = val;
+            db_post_events(cfg[i].rbv, &cfg[i].rbv->val, DBE_VALUE);
+        }
+        printf("doConfigure done\n");
     }
 };
 
@@ -191,9 +218,11 @@ static int PGPHandlerThread(void *p)
             continue;
         if (FD_ISSET(cfgfd, &fds)) {
             read(cfgfd, &cfgrec, sizeof(cfgrec));
+            printf("Have configuration request from %s\n", cfgrec->name);
             pgp->disableTriggers();
             pgp->doConfigure();
             pgp->enableTriggers();
+            pgp->cfgstate = PGPCARD::CfgDone;
             cfgrec->pact = FALSE;
             dbScanLock((dbCommon *)cfgrec);
             dbProcess((dbCommon *)cfgrec);
@@ -205,6 +234,7 @@ static int PGPHandlerThread(void *p)
 
             if (!f)
                 continue;
+            printf("Data from lane %d, vc %d\n", f->lane(), f->vc());
             i = pgp->findSrc(f->lane(), f->vc());                 // MCB - Port Offset?!?
             if (i == -1) {
                 printf("%s: Cannot find source for %d, %d!\n", pgp->name, f->lane(), f->vc());
@@ -249,22 +279,6 @@ void PGP_receive_data(void *p, pgp_data *data) {
     scanIoRequest(src->ioscan);
 }
 
-void PgpRegister(char *name, int lane)
-{
-    PGPCARD  *pdevice = NULL;
-
-    if (!name || pgpFindDeviceByName(name)) {
-        printf("PGP card %s is already registered!\n", name);
-        epicsThreadSuspendSelf();
-    }
-
-    pdevice = new PGPCARD(name, lane);
-
-    epicsMutexLock(PGPlock);
-    ellAdd(&PGPCards, (ELLNODE *)pdevice);
-    epicsMutexUnlock(PGPlock);
-}
-
 epicsStatus PgpReport(int level)
 {
     /* Print some debug stuff. */
@@ -278,10 +292,29 @@ void PgpShutdownFunc (void *arg)
 
 epicsStatus PgpInit (void)
 {
-    ellInit((ELLLIST *) &PGPCards);
-    PGPlock = epicsMutexMustCreate();
-    epicsAtExit (&PgpShutdownFunc, NULL);
+    if (!PGPlock) {
+        ellInit((ELLLIST *) &PGPCards);
+        PGPlock = epicsMutexMustCreate();
+        epicsAtExit (&PgpShutdownFunc, NULL);
+    }
     return 0;
+}
+
+void PgpRegister(char *name, int lane)
+{
+    PGPCARD  *pdevice = NULL;
+
+    PgpInit();
+    if (!name || pgpFindDeviceByName(name)) {
+        printf("PGP card %s is already registered!\n", name);
+        epicsThreadSuspendSelf();
+    }
+
+    pdevice = new PGPCARD(name, lane);
+
+    epicsMutexLock(PGPlock);
+    ellAdd(&PGPCards, (ELLNODE *)pdevice);
+    epicsMutexUnlock(PGPlock);
 }
 
 static long init_li_record(void* record)

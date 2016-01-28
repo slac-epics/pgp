@@ -39,7 +39,7 @@ namespace Pds {
           _portOffset += 1;
       }
       // End MCB changes.
-      if (pf) printf("Pgp::Pgp(fd(%d)), offset(%u)\n", f, _portOffset);
+      if (pf) printf("Pgp::Pgp(fd(%d)), offset(%u)\n", _fd, _portOffset);
       for (int i=0; i<BufferWords; i++) _readBuffer[i] = i;
     }
 
