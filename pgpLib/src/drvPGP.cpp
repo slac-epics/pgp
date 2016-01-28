@@ -41,10 +41,11 @@ class PGPCARD;
 
 struct srchandler {
     PGPCARD *pgp;
-    int lane;
-    int vc;
+    unsigned lane;
+    unsigned vc;
     IOSCANPVT ioscan;
     DBADDR trigenable;
+    epicsEnum16 trigstate;
     void (*rcvfunc)(void *, int, void *);
     void *user;
     pgp_data *data;
@@ -133,7 +134,7 @@ public:
         } else
             return (void *)&src[srcmax++];
     }
-    int findSrc(int lane, int vc) {
+    int findSrc(unsigned lane, unsigned vc) {
         int i;
         for (i = 0; i < srcmax; i++) {
             if (src[i].lane == lane && src[i].vc == vc)
@@ -145,6 +146,26 @@ public:
         r->pact = TRUE;
         write(cfgpipe[1], &r, sizeof(r));  // Wake up the thread, and tell him who is calling!
     }
+    void disableTriggers(void) {
+        int i;
+        epicsEnum16 enable = 1;
+        for (i = 0; i < srcmax; i++) {
+            src[i].trigstate = *(epicsEnum16 *)src[i].trigenable.pfield;
+            dbPutField(&src[i].trigenable, DBR_ENUM, &enable, sizeof(enable));
+        }
+    }
+    void enableTriggers(void) {
+        int i;
+        for (i = 0; i < srcmax; i++) {
+            dbPutField(&src[i].trigenable, DBR_ENUM, &src[i].trigstate, sizeof(src[i].trigstate));
+        }
+    }
+    void doConfigure(void) {
+        int i;
+        for (i = 0; i < cfgmax; i++) {
+            /* MCB */
+        }
+    }
 };
 
 static int PGPHandlerThread(void *p)
@@ -153,6 +174,7 @@ static int PGPHandlerThread(void *p)
     fd_set orig, fds;
     int cfgfd, pgpfd, mxfd;
     struct aSubRecord *cfgrec;
+    int i;
 
     FD_ZERO(&orig);
     cfgfd = pgp->cfgpipe[0];
@@ -169,12 +191,26 @@ static int PGPHandlerThread(void *p)
             continue;
         if (FD_ISSET(cfgfd, &fds)) {
             read(cfgfd, &cfgrec, sizeof(cfgrec));
-            /* MCB - Configure the card! */
+            pgp->disableTriggers();
+            pgp->doConfigure();
+            pgp->enableTriggers();
             cfgrec->pact = FALSE;
-            /* MCB - Re-process cfgrec! */
+            dbScanLock((dbCommon *)cfgrec);
+            dbProcess((dbCommon *)cfgrec);
+            dbScanUnlock((dbCommon *)cfgrec);
         }
         if (FD_ISSET(pgpfd, &fds)) {
-            /* MCB - Read some data and pass it to the correct handler! */
+            int size;
+            RegisterSlaveImportFrame *f = pgp->pgp->do_read(&size);
+
+            if (!f)
+                continue;
+            i = pgp->findSrc(f->lane(), f->vc());                 // MCB - Port Offset?!?
+            if (i == -1) {
+                printf("%s: Cannot find source for %d, %d!\n", pgp->name, f->lane(), f->vc());
+                continue;
+            }
+            (*pgp->src[i].rcvfunc)((void *)f, size, &pgp->src[i]);
         }
     }
     return 0; // Never gets here!

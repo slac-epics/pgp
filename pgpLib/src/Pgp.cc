@@ -45,6 +45,39 @@ namespace Pds {
 
     Pgp::~Pgp() {}
 
+    Pds::Pgp::RegisterSlaveImportFrame* Pgp::do_read(int *result) {
+      Pds::Pgp::RegisterSlaveImportFrame* ret = (Pds::Pgp::RegisterSlaveImportFrame*)_readBuffer;
+      PgpCardRx       pgpCardRx;
+      pgpCardRx.model   = sizeof(&pgpCardRx);
+      pgpCardRx.maxSize = BufferWords;
+      pgpCardRx.data    = (__u32*)_readBuffer;
+      if ((*result = ::read(_fd, &pgpCardRx, sizeof(PgpCardRx))) >= 0) {
+          if (pgpCardRx.eofe || pgpCardRx.fifoErr || pgpCardRx.lengthErr) {
+              printf("Pgp::do_read error eofe(%u), fifoErr(%u), lengthErr(%u)\n",
+                     pgpCardRx.eofe, pgpCardRx.fifoErr, pgpCardRx.lengthErr);
+              printf("\tpgpLane(%u), pgpVc(%u)\n", pgpCardRx.pgpLane, pgpCardRx.pgpVc);
+              ret = 0;
+          } else {
+              bool hardwareFailure = false;
+              uint32_t* u = (uint32_t*)ret;
+              if (ret->failed((Pds::Pgp::LastBits*)(u+*result-1))) {
+                  printf("Pgp::do_read received HW failure\n");
+                  ret->print();
+                  hardwareFailure = true;
+              }
+              if (ret->timeout((Pds::Pgp::LastBits*)(u+*result-1))) {
+                  printf("Pgp::do_read received HW timed out\n");
+                  ret->print();
+                  hardwareFailure = true;
+              }
+              if (hardwareFailure) ret = 0;
+          }
+      } else {
+          ret = 0;
+      }
+      return ret;
+    }
+
     Pds::Pgp::RegisterSlaveImportFrame* Pgp::read(unsigned size) {
       Pds::Pgp::RegisterSlaveImportFrame* ret = (Pds::Pgp::RegisterSlaveImportFrame*)_readBuffer;
       int             sret = 0;
