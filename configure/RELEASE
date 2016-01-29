@@ -32,7 +32,8 @@ TIMESYNC_MODULE_VERSION=R1.1.8
 # ============================================================
 IOCADMIN=$(EPICS_MODULES)/iocAdmin/$(IOCADMIN_MODULE_VERSION)
 AUTOSAVE=$(EPICS_MODULES)/autosave/$(AUTOSAVE_MODULE_VERSION)
-EVENT2=$(EPICS_MODULES)/event2/$(EVENT2_MODULE_VERSION)
+#EVENT2=$(EPICS_MODULES)/event2/$(EVENT2_MODULE_VERSION)
 TIMESYNC=$(EPICS_MODULES)/timesync/$(TIMESYNC_MODULE_VERSION)
 
-#MY_MODULES=/reg/neh/home1/mcbrowne/trunk12/modules
+MY_MODULES=/reg/neh/home1/mcbrowne/trunk12/modules
+EVENT2=$(MY_MODULES)/event2/current

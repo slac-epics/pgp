@@ -26,7 +26,7 @@ namespace Pds {
         enum masks {addrMask=(1<<24)-1};
 
         RegisterSlaveExportFrame(
-            Pgp* pgp,            // CARD id
+            Pgp *pgp,
             PgpRSBits::opcode,   // opcode
             Destination* dest,   // Destination
             unsigned,            // address
@@ -40,14 +40,11 @@ namespace Pds {
         static unsigned    count;
         static unsigned    errors;
 
-      private:
-        int                _fd;
-
       public:
         unsigned tid()                            {return bits._tid;}
         void waiting(PgpRSBits::waitState w)      {bits._waiting = w;}
         uint32_t* array()                         {return (uint32_t*)&_data;}
-        unsigned post(__u32, bool pf=false);  // the size of the entire header + payload in number of 32 bit words
+        unsigned post(int _fd, __u32 size, bool pf=false);  // the size of the entire header + payload in number of 32 bit words
         void print(unsigned = 0, unsigned = 4);
 
 

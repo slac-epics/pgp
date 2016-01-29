@@ -21,7 +21,7 @@ namespace Pds {
     unsigned  RegisterSlaveExportFrame::errors = 0;
 
     RegisterSlaveExportFrame::RegisterSlaveExportFrame(
-        Pgp *pgp,
+        Pgp *pgp,                                                       
         PgpRSBits::opcode o,
         Destination* dest,
         unsigned a,
@@ -29,7 +29,6 @@ namespace Pds {
         uint32_t da,
         PgpRSBits::waitState w)
     {
-      _fd           = pgp->fd();
       bits._tid     = transID & ((1<<23)-1);
       bits._waiting = w;
 //      printf("RegisterSlaveExportFrame::RegisterSlaveExportFrame() lane %u offset %u\n", dest->lane(), pgp->portOffset());
@@ -44,7 +43,7 @@ namespace Pds {
     }
 
     // parameter is the size of the post in number of 32 bit words
-    unsigned RegisterSlaveExportFrame::post(__u32 size, bool pf) {
+    unsigned RegisterSlaveExportFrame::post(int _fd, __u32 size, bool pf) {
       struct timeval  timeout;
       PgpCardTx       pgpCardTx;
       int             ret;
@@ -92,13 +91,13 @@ namespace Pds {
     void RegisterSlaveExportFrame::print(unsigned n, unsigned s) {
       char ocn[][20] = {"read", "write", "set", "clear"};
 //      char dn[][20]  = {"Q0", "Q1", "Q2", "Q3", "Cncntr"};
-      printf("Register Slave Export Frame: %u %u fd(%u)\n\t", s, n, _fd);
+      printf("Register Slave Export Frame: %u %u\n\t", s, n);
       printf("lane(%u), vc(%u), opcode(%s), addr(0x%x), waiting(%s), tid(0x%x), ",
           bits._lane, bits._vc, &ocn[bits.oc][0],
           bits._addr, bits._waiting ? "waiting" : "not waiting", bits._tid);
       printf("data(0x%x)\n", (unsigned)_data);
-//      uint32_t* u = (uint32_t*)this;
-//      printf("\t"); for (unsigned i=0;i<s;i++) printf("0x%x ", u[i]); printf("\n");
+      uint32_t* u = (uint32_t*)this;
+      printf("\t"); for (unsigned i=0;i<s;i++) printf("0x%08x ", u[i]); printf("\n");
     }
   }
 }

@@ -67,7 +67,7 @@ public:
         int lane;
         int vc;
         unsigned addr;
-        Destination dest;
+        Destination *dest;
     } *cfg;
     enum CfgState { CfgIdle, CfgActive, CfgDone} cfgstate;
     int srcsize;
@@ -114,12 +114,13 @@ public:
         addCfg(seq);
         cfg[seq].rbv = r;
     }
-    void addCfgOut(struct longoutRecord *r, int lane, int vc, int seq) {
+    void addCfgOut(struct longoutRecord *r, int lane, int vc, int addr, int seq) {
         addCfg(seq);
         cfg[seq].val = r;
         cfg[seq].lane = lane;
         cfg[seq].vc = vc;
-        cfg[seq].dest = Destination((lane << 2) | (vc & 3));
+        cfg[seq].addr = addr;
+        cfg[seq].dest = new Destination((lane << 2) | (vc & 3));
     }
     void *addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user) {
         if (srcmax == srcsize) {
@@ -162,38 +163,80 @@ public:
         }
     }
     void disableTriggers(void) {
-        int i;
-        epicsEnum16 enable = 1;
-        printf("disableTriggers\n");
+        int i, j;
+        epicsEnum16 disable = 0;
+        struct dbCommon *evr[5];
+        int evrcnt = 0;
         for (i = 0; i < srcmax; i++) {
             src[i].trigstate = *(epicsEnum16 *)src[i].trigenable.pfield;
-            dbPutField(&src[i].trigenable, DBR_ENUM, &enable, sizeof(enable));
+            dbPutField(&src[i].trigenable, DBR_ENUM, &disable, sizeof(src[i].trigstate));
+            for (j = 0; j < evrcnt; j++)
+                if (evr[j] == src[i].trigenable.precord)
+                    break;
+            if (j == evrcnt)
+                evr[evrcnt++] = src[i].trigenable.precord;
         }
-        printf("disableTriggers done!\n");
+        for (j = 0; j < evrcnt; j++) {
+            dbScanLock(evr[j]);
+            dbProcess(evr[j]);
+            dbScanUnlock(evr[j]);
+        }
     }
     void enableTriggers(void) {
         int i;
-        printf("enableTriggers\n");
         for (i = 0; i < srcmax; i++) {
             dbPutField(&src[i].trigenable, DBR_ENUM, &src[i].trigstate, sizeof(src[i].trigstate));
         }
-        printf("enableTriggers done!\n");
     }
     void doConfigure(void) {
         int i;
         unsigned val;
-        printf("doConfigure\n");
         for (i = 0; i < cfgmax; i++) {
-            pgp->writeRegister(&cfg[i].dest, cfg[i].addr, cfg[i].val->val, true, PgpRSBits::Waiting);
+            printf("Writing 0x%x to address %d\n", cfg[i].val->val, cfg[i].addr);
+            pgp->writeRegister(cfg[i].dest, cfg[i].addr, cfg[i].val->val, false, PgpRSBits::notWaiting);
         }
         for (i = 0; i < cfgmax; i++) {
-            pgp->readRegister(&cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, true);
+            pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, false);
+            printf("Read 0x%x from address %d\n", val, cfg[i].addr);
             cfg[i].rbv->val = val;
             db_post_events(cfg[i].rbv, &cfg[i].rbv->val, DBE_VALUE);
         }
-        printf("doConfigure done\n");
     }
 };
+
+#define DummySize (1<<15)
+unsigned _dummy[DummySize/sizeof(unsigned)];
+
+unsigned flushInputQueue(int f, bool printFlag) {
+  fd_set          fds;
+  struct timeval  timeout;
+  timeout.tv_sec  = 0;
+  timeout.tv_usec = 2500;
+  int ret;
+  unsigned count = 0;
+  PgpCardRx       pgpCardRx;
+  pgpCardRx.model   = sizeof(&pgpCardRx);
+  pgpCardRx.maxSize = DummySize;
+  pgpCardRx.data    = _dummy;
+  do {
+    FD_ZERO(&fds);
+    FD_SET(f,&fds);
+    ret = select( f+1, &fds, NULL, NULL, &timeout);
+    if (ret>0) {
+      count += 1;
+      ::read(f, &pgpCardRx, sizeof(PgpCardRx));
+    }
+  } while ((ret > 0) && (count < 100));
+  if (count) {
+    if (count == 100 && (count < 100)) {
+      printf("\tflushInputQueue: pgpCardRx lane(%u) vc(%u) rxSize(%u) eofe(%s) lengthErr(%s)\n",
+          pgpCardRx.pgpLane, pgpCardRx.pgpVc, pgpCardRx.rxSize, pgpCardRx.eofe ? "true" : "false",
+                                                                pgpCardRx.lengthErr ? "true" : "false");
+      printf("\t\t"); for (ret=0; ret<8; ret++) printf("%u ", _dummy[ret]);  printf("/n");
+    }
+  }
+  return count;
+}
 
 static int PGPHandlerThread(void *p)
 {
@@ -207,18 +250,21 @@ static int PGPHandlerThread(void *p)
     cfgfd = pgp->cfgpipe[0];
     pgpfd = pgp->pgp->fd();
     if (pgpfd > cfgfd)
-        mxfd = pgpfd;
+        mxfd = pgpfd + 1;
     else
-        mxfd = cfgfd;
+        mxfd = cfgfd + 1;
     FD_SET(cfgfd, &orig);
     FD_SET(pgpfd, &orig);
+
+    flushInputQueue(pgpfd, true);
     for (;;) {
         fds = orig;
-        if (select(mxfd, &fds, NULL, NULL, NULL) <= 0)
+        if (select(mxfd, &fds, NULL, NULL, NULL) <= 0) {
+            printf("Select failed?\n");
             continue;
+        }
         if (FD_ISSET(cfgfd, &fds)) {
             read(cfgfd, &cfgrec, sizeof(cfgrec));
-            printf("Have configuration request from %s\n", cfgrec->name);
             pgp->disableTriggers();
             pgp->doConfigure();
             pgp->enableTriggers();
@@ -230,6 +276,7 @@ static int PGPHandlerThread(void *p)
         }
         if (FD_ISSET(pgpfd, &fds)) {
             int size;
+            printf("Selected DATA\n");
             RegisterSlaveImportFrame *f = pgp->pgp->do_read(&size);
 
             if (!f)
@@ -240,7 +287,7 @@ static int PGPHandlerThread(void *p)
                 printf("%s: Cannot find source for %d, %d!\n", pgp->name, f->lane(), f->vc());
                 continue;
             }
-            (*pgp->src[i].rcvfunc)((void *)f, size, &pgp->src[i]);
+            (*pgp->src[i].rcvfunc)((void *)f, size, pgp->src[i].user);
         }
     }
     return 0; // Never gets here!
@@ -349,7 +396,7 @@ static long init_lo_record(void* record)
 {
     longoutRecord* r = reinterpret_cast<longoutRecord*>(record);
     char boxname[MAX_CA_STRING_SIZE];
-    int lane, vc, seq;
+    int lane, vc, addr, seq;
     PGPCARD *pgp = NULL;
 
     if (r->out.type != INST_IO) {
@@ -357,7 +404,7 @@ static long init_lo_record(void* record)
         r->pact=TRUE;
         return (S_db_badField);
     }
-    if (sscanf(r->out.value.instio.string, "%[^ ] %i %i %i", boxname, &lane, &vc, &seq) != 4) {
+    if (sscanf(r->out.value.instio.string, "%[^ ] %i %i %i %i", boxname, &lane, &vc, &addr, &seq) != 5) {
         printf("Badly formated OUT for longout record %s: %s\n", r->name, r->out.value.instio.string);
         r->pact=TRUE;
         return -1;
@@ -369,7 +416,7 @@ static long init_lo_record(void* record)
         return -1;
     }
     r->dpvt = (void *)pgp;
-    pgp->addCfgOut(r, lane, vc, seq);
+    pgp->addCfgOut(r, lane, vc, addr, seq);
     return 0;
 }
 

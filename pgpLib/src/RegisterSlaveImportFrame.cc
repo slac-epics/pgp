@@ -31,12 +31,12 @@ namespace Pds {
       uint32_t* u = &_data;
       printf("\tdata: ");
       for (unsigned i=0; i<(size-2);) {  //
-        printf("0x%04x ", u[i++]);
+        printf("0x%08x ", u[i++]);
         if (!(i&7)) printf("\n\t      ");
       }
       printf(" size(%u)\n", size);
-//      u = (uint32_t*)this;
-//      printf("\t"); for (unsigned i=0;i<size;i++) printf("0x%04x ", u[i]); printf("\n");
+      u = (uint32_t*)this;
+      printf("\t"); for (unsigned i=0;i<size;i++) printf("0x%08x ", u[i]); printf("\n");
     }
   }
 }

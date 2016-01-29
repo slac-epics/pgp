@@ -47,6 +47,7 @@ namespace Pds {
 
     Pds::Pgp::RegisterSlaveImportFrame* Pgp::do_read(int *result) {
       Pds::Pgp::RegisterSlaveImportFrame* ret = (Pds::Pgp::RegisterSlaveImportFrame*)_readBuffer;
+      memset(_readBuffer, 0, sizeof(_readBuffer));
       PgpCardRx       pgpCardRx;
       pgpCardRx.model   = sizeof(&pgpCardRx);
       pgpCardRx.maxSize = BufferWords;
@@ -177,7 +178,7 @@ namespace Pds {
               data,
               w);
       if (printFlag) rsef.print();
-      return rsef.post(sizeof(rsef)/sizeof(uint32_t));
+      return rsef.post(_fd, sizeof(rsef)/sizeof(uint32_t));
     }
 
     unsigned Pgp::writeRegisterBlock(
@@ -202,7 +203,7 @@ namespace Pds {
       memcpy(rsef->array(), data, inSize*sizeof(uint32_t));
       rsef->array()[inSize] = 0;
       if (pf) rsef->print(0, size);
-      return rsef->post(size);
+      return rsef->post(_fd, size);
     }
 
     unsigned Pgp::readRegister(
@@ -226,7 +227,7 @@ namespace Pds {
 //        rsef.print();
 //      }
       if (pf) rsef.print();
-      if (rsef.post(sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t),pf) != Success) {
+      if (rsef.post(_fd, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t),pf) != Success) {
         printf("Pgp::readRegister failed, export frame follows.\n");
         rsef.print(0, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t));
         return  Failure;
