@@ -35,20 +35,21 @@ extern "C" {
 
 static ELLLIST PGPCards = {{ NULL, NULL }, 0};
 static epicsMutexId PGPlock = NULL;
+int PGP_reg_debug = false;
 
 static int PGPHandlerThread(void *p);
 
 class PGPCARD;
 
 struct srchandler {
-    PGPCARD *pgp;
     unsigned lane;
     unsigned vc;
     IOSCANPVT ioscan;
     DBADDR trigenable;
     epicsEnum16 trigstate;
-    void (*rcvfunc)(void *, int, void *);
-    void *user;
+    PGP_rcvfunc rcvfunc;
+    PGP_enfunc enfunc;
+    void *dev_token;
     pgp_data *data;
 };
 
@@ -70,9 +71,7 @@ public:
         Destination *dest;
     } *cfg;
     enum CfgState { CfgIdle, CfgActive, CfgDone} cfgstate;
-    int srcsize;
-    int srcmax;
-    struct srchandler *src;
+    struct srchandler src;
 
     PGPCARD(char *_name, int _lane) {
         cfgstate = CfgIdle;
@@ -85,9 +84,6 @@ public:
         cfgsize = CFGINC;
         cfgmax  = -1;
         cfg = (struct cfgelem *)malloc(CFGINC*sizeof(struct cfgelem));
-        srcsize = SRCINC;
-        srcmax  = 0;
-        src = (struct srchandler *)malloc(SRCINC*sizeof(struct srchandler));
         epicsThreadMustCreate("PGPHandler", epicsThreadPriorityHigh,
                               epicsThreadGetStackSize(epicsThreadStackMedium),
                               (EPICSTHREADFUNC)PGPHandlerThread,this);
@@ -122,31 +118,19 @@ public:
         cfg[seq].addr = addr;
         cfg[seq].dest = new Destination((lane << 2) | (vc & 3));
     }
-    void *addSrc(int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user) {
-        if (srcmax == srcsize) {
-            srcsize += SRCINC;
-            src = (struct srchandler *)realloc(src, srcsize*sizeof(struct srchandler));
-        }
-        src[srcmax].pgp     = this;
-        src[srcmax].lane    = lane;
-        src[srcmax].vc      = vc;
-        src[srcmax].rcvfunc = rcvfunc;
-        src[srcmax].user    = user;
-        src[srcmax].data    = NULL;
-        scanIoInit(&src[srcmax].ioscan);
-        if (dbNameToAddr(trigger, &src[srcmax].trigenable)) {
+    void *addSrc(int lane, int vc, char *trigger, PGP_rcvfunc rcvfunc, PGP_enfunc enfunc, void *dev_token) {
+        src.lane      = lane;
+        src.vc        = vc;
+        src.rcvfunc   = rcvfunc;
+        src.enfunc    = enfunc;
+        src.dev_token = dev_token;
+        src.data      = NULL;
+        scanIoInit(&src.ioscan);
+        if (dbNameToAddr(trigger, &src.trigenable)) {
             printf("No PV trigger named %s!\n", trigger);
             return NULL;
         } else
-            return (void *)&src[srcmax++];
-    }
-    int findSrc(unsigned lane, unsigned vc) {
-        int i;
-        for (i = 0; i < srcmax; i++) {
-            if (src[i].lane == lane && src[i].vc == vc)
-                return i;
-        }
-        return -1;
+            return this;
     }
     void configure(struct aSubRecord *r) {
         switch (cfgstate) {
@@ -162,41 +146,30 @@ public:
             break;
         }
     }
-    void disableTriggers(void) {
-        int i, j;
+    void disableSrc(void) {
         epicsEnum16 disable = 0;
-        struct dbCommon *evr[5];
-        int evrcnt = 0;
-        for (i = 0; i < srcmax; i++) {
-            src[i].trigstate = *(epicsEnum16 *)src[i].trigenable.pfield;
-            dbPutField(&src[i].trigenable, DBR_ENUM, &disable, sizeof(src[i].trigstate));
-            for (j = 0; j < evrcnt; j++)
-                if (evr[j] == src[i].trigenable.precord)
-                    break;
-            if (j == evrcnt)
-                evr[evrcnt++] = src[i].trigenable.precord;
-        }
-        for (j = 0; j < evrcnt; j++) {
-            dbScanLock(evr[j]);
-            dbProcess(evr[j]);
-            dbScanUnlock(evr[j]);
-        }
+        src.trigstate = *(epicsEnum16 *)src.trigenable.pfield;
+        dbPutField(&src.trigenable, DBR_ENUM, &disable, sizeof(src.trigstate));
+        dbScanLock(src.trigenable.precord);
+        dbProcess(src.trigenable.precord);
+        dbScanUnlock(src.trigenable.precord);
+        if (src.enfunc)
+            (*src.enfunc)(0, src.dev_token);
     }
-    void enableTriggers(void) {
-        int i;
-        for (i = 0; i < srcmax; i++) {
-            dbPutField(&src[i].trigenable, DBR_ENUM, &src[i].trigstate, sizeof(src[i].trigstate));
-        }
+    void enableSrc(void) {
+        if (src.enfunc)
+            (*src.enfunc)(1, src.dev_token);
+        dbPutField(&src.trigenable, DBR_ENUM, &src.trigstate, sizeof(src.trigstate));
     }
     void doConfigure(void) {
         int i;
         unsigned val;
         for (i = 0; i < cfgmax; i++) {
             printf("Writing 0x%x to address %d\n", cfg[i].val->val, cfg[i].addr);
-            pgp->writeRegister(cfg[i].dest, cfg[i].addr, cfg[i].val->val, false, PgpRSBits::notWaiting);
+            pgp->writeRegister(cfg[i].dest, cfg[i].addr, cfg[i].val->val, PGP_reg_debug, PgpRSBits::notWaiting);
         }
         for (i = 0; i < cfgmax; i++) {
-            pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, false);
+            pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
             printf("Read 0x%x from address %d\n", val, cfg[i].addr);
             cfg[i].rbv->val = val;
             db_post_events(cfg[i].rbv, &cfg[i].rbv->val, DBE_VALUE);
@@ -228,12 +201,13 @@ unsigned flushInputQueue(int f, bool printFlag) {
     }
   } while ((ret > 0) && (count < 100));
   if (count) {
-    if (count == 100 && (count < 100)) {
-      printf("\tflushInputQueue: pgpCardRx lane(%u) vc(%u) rxSize(%u) eofe(%s) lengthErr(%s)\n",
-          pgpCardRx.pgpLane, pgpCardRx.pgpVc, pgpCardRx.rxSize, pgpCardRx.eofe ? "true" : "false",
-                                                                pgpCardRx.lengthErr ? "true" : "false");
-      printf("\t\t"); for (ret=0; ret<8; ret++) printf("%u ", _dummy[ret]);  printf("/n");
-    }
+      printf("\tflushInputQueue: pgpCardRx count(%u) lane(%u) vc(%u) rxSize(%u) eofe(%s) lengthErr(%s)\n",
+             count, pgpCardRx.pgpLane, pgpCardRx.pgpVc, pgpCardRx.rxSize, 
+             pgpCardRx.eofe ? "true" : "false", pgpCardRx.lengthErr ? "true" : "false");
+      printf("\t\t");
+      for (unsigned i=0; i<pgpCardRx.rxSize; i++)
+          printf("0x%08x ", _dummy[i]);
+      printf("\n");
   }
   return count;
 }
@@ -244,7 +218,6 @@ static int PGPHandlerThread(void *p)
     fd_set orig, fds;
     int cfgfd, pgpfd, mxfd;
     struct aSubRecord *cfgrec;
-    int i;
 
     FD_ZERO(&orig);
     cfgfd = pgp->cfgpipe[0];
@@ -256,7 +229,7 @@ static int PGPHandlerThread(void *p)
     FD_SET(cfgfd, &orig);
     FD_SET(pgpfd, &orig);
 
-    flushInputQueue(pgpfd, true);
+    flushInputQueue(pgpfd, false);
     for (;;) {
         fds = orig;
         if (select(mxfd, &fds, NULL, NULL, NULL) <= 0) {
@@ -265,9 +238,10 @@ static int PGPHandlerThread(void *p)
         }
         if (FD_ISSET(cfgfd, &fds)) {
             read(cfgfd, &cfgrec, sizeof(cfgrec));
-            pgp->disableTriggers();
+            pgp->disableSrc();
+            flushInputQueue(pgpfd, false);
             pgp->doConfigure();
-            pgp->enableTriggers();
+            pgp->enableSrc();
             pgp->cfgstate = PGPCARD::CfgDone;
             cfgrec->pact = FALSE;
             dbScanLock((dbCommon *)cfgrec);
@@ -275,19 +249,19 @@ static int PGPHandlerThread(void *p)
             dbScanUnlock((dbCommon *)cfgrec);
         }
         if (FD_ISSET(pgpfd, &fds)) {
-            int size;
-            printf("Selected DATA\n");
-            RegisterSlaveImportFrame *f = pgp->pgp->do_read(&size);
+            pgp_data *d = (*pgp->src.rcvfunc)(PGP_Alloc, pgp->src.dev_token);
+            d->pgp_token = pgp;
+            d->size = d->maxsize;
+            RegisterSlaveImportFrame *f = pgp->pgp->do_read(d->data, &d->size);
 
-            if (!f)
-                continue;
-            printf("Data from lane %d, vc %d\n", f->lane(), f->vc());
-            i = pgp->findSrc(f->lane(), f->vc());                 // MCB - Port Offset?!?
-            if (i == -1) {
-                printf("%s: Cannot find source for %d, %d!\n", pgp->name, f->lane(), f->vc());
+            if (!f) {
+                (*pgp->src.rcvfunc)(PGP_Free, d);
                 continue;
             }
-            (*pgp->src[i].rcvfunc)((void *)f, size, pgp->src[i].user);
+            printf("Data from lane %d, vc %d, size %d\n", f->lane(), f->vc(), d->size);
+            if (PGP_reg_debug)
+                f->print(d->size);
+            (*pgp->src.rcvfunc)(PGP_Receive, d);
         }
     }
     return 0; // Never gets here!
@@ -309,7 +283,8 @@ PGPCARD *pgpFindDeviceByName(char * name)
     return pdevice;
 }
 
-void *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void (*rcvfunc)(void *, int, void *), void *user)
+void *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, 
+                               PGP_rcvfunc rcvfunc, PGP_enfunc enfunc, void *dev_token)
 {
     PGPCARD  *pdevice = pgpFindDeviceByName(pgp);
 
@@ -317,13 +292,37 @@ void *PGP_register_data_source(char *pgp, int lane, int vc, char *trigger, void 
         printf("No PGP card named %s!\n", pgp);
         return NULL;
     }
-    return pdevice->addSrc(lane, vc, trigger, rcvfunc, user);
+    return pdevice->addSrc(lane, vc, trigger, rcvfunc, enfunc, dev_token);
 }
 
-void PGP_receive_data(void *p, pgp_data *data) {
-    struct srchandler *src = (struct srchandler *)p;
+void PGP_receive_data(void *pgp_token, pgp_data *data) {
+    PGPCARD *pgp = (PGPCARD *)pgp_token;
+    struct srchandler *src = &pgp->src;
     src->data = data;
     scanIoRequest(src->ioscan);
+}
+
+unsigned PGP_register_write(void *pgp_token, int lane, int vc, unsigned addr, unsigned val)
+{
+    PGPCARD *pgp = (PGPCARD *)pgp_token;
+    Destination d((lane << 2) | (vc & 3));
+
+    printf("Writing 0x%x to address %d\n", val, addr);
+    return pgp->pgp->writeRegister(&d, addr, val, PGP_reg_debug, PgpRSBits::notWaiting);
+}
+
+unsigned PGP_register_read(void *pgp_token, int lane, int vc, unsigned addr, unsigned *val)
+{
+    PGPCARD *pgp = (PGPCARD *)pgp_token;
+    Destination d((lane << 2) | (vc & 3));
+    unsigned result;
+
+    result = pgp->pgp->readRegister(&d, addr, (lane << 12) + (vc << 8) + addr, val, 1, PGP_reg_debug);
+    if (!result)
+        printf("Read 0x%x from address %d\n", *val, addr);
+    else
+        printf("Read from address %d failed!\n", addr);
+    return result;
 }
 
 epicsStatus PgpReport(int level)
@@ -424,7 +423,7 @@ static long init_wf_record(void* record)
 {
     waveformRecord* r = reinterpret_cast<waveformRecord*>(record);
     char boxname[MAX_CA_STRING_SIZE], data[MAX_CA_STRING_SIZE];
-    int lane, vc, i;
+    int lane, vc;
     PGPCARD *pgp = NULL;
 
     if (r->inp.type != INST_IO) {
@@ -444,13 +443,7 @@ static long init_wf_record(void* record)
         r->pact=TRUE;
         return -1;
     }
-    i = pgp->findSrc(lane, vc);
-    if (i >= 0) {
-        r->dpvt = (void *)&pgp->src[i];
-    } else {
-        printf("Cannot find data source for record %s (lane %d, vc %d)!\n", r->name, lane, vc);
-        r->dpvt = NULL;
-    }
+    r->dpvt = (void *)pgp;
     return 0;
 }
 
@@ -469,27 +462,25 @@ static long write_lo(void* record)
 static long read_wf(void *record)
 {
     waveformRecord* r = reinterpret_cast<waveformRecord*>(record);
-    struct srchandler *src = (struct srchandler *)r->dpvt;
-    if (!src || !src->data) {
+    PGPCARD *pgp = (PGPCARD *)r->dpvt;
+    if (!pgp->src.data) {
         r->nsta = UDF_ALARM;
         r->nsev = INVALID_ALARM;
         return -1;
     }
-    memcpy(r->bptr, src->data->data, src->data->size * sizeof(unsigned));
-    r->nord = src->data->size;
+    memcpy(r->bptr, pgp->src.data->data, pgp->src.data->size * sizeof(unsigned));
+    r->nord = pgp->src.data->size;
     r->udf = FALSE;
-    r->time = src->data->time;
-    src->data = NULL;
+    r->time = pgp->src.data->time;
+    pgp->src.data = NULL;
     return 0;
 }
 
 static long get_wf_ioint(int cmd, void *record, IOSCANPVT *iopvt)
 {
     waveformRecord* r = reinterpret_cast<waveformRecord*>(record);
-    struct srchandler *src = (struct srchandler *)r->dpvt;
-    if (!src)
-        return -1;
-    *iopvt = src->ioscan;
+    PGPCARD *pgp = (PGPCARD *)r->dpvt;
+    *iopvt = pgp->src.ioscan;
     return 0;
 }
 

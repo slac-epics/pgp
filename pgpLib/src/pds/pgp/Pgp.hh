@@ -25,7 +25,7 @@ namespace Pds {
       public:
         enum {BufferWords=2048};
         enum {Success=0, Failure=1, SelectSleepTimeUSec=10000};
-        Pds::Pgp::RegisterSlaveImportFrame* do_read(int *result);
+        Pds::Pgp::RegisterSlaveImportFrame* do_read(unsigned *buffer, int *size);
         Pds::Pgp::RegisterSlaveImportFrame* read(
                           unsigned size = (sizeof(Pds::Pgp::RegisterSlaveImportFrame)/sizeof(uint32_t)));
         unsigned       writeRegister(

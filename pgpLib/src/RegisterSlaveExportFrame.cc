@@ -57,13 +57,13 @@ namespace Pds {
       pgpCardTx.data    = (__u32 *)this;
 
       if (pf) {
-    	  printf("RSEF::post: model 0x%x, cmd 0x%x, vd 0x%x, lane 0x%x, size 0x%x, data 0x%p\n",
+    	  printf("RSEF::post: model 0x%x, cmd 0x%x, vd 0x%x, lane 0x%x, size 0x%x, data 0x%p, fd(%d)\n",
     			  pgpCardTx.model,
     			  pgpCardTx.cmd,
     			  pgpCardTx.pgpVc,
     			  pgpCardTx.pgpLane,
     			  pgpCardTx.size,
-    			  pgpCardTx.data);
+                          pgpCardTx.data, _fd);
       }
 
       // Wait for write ready
