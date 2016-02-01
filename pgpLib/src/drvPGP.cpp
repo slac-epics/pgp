@@ -38,6 +38,7 @@ static epicsMutexId PGPlock = NULL;
 int PGP_reg_debug = false;
 
 static int PGPHandlerThread(void *p);
+static unsigned flushInputQueue(int f, bool printFlag);
 
 class PGPCARD;
 
@@ -159,6 +160,7 @@ public:
     void enableSrc(void) {
         if (src.enfunc)
             (*src.enfunc)(1, src.dev_token);
+        flushInputQueue(pgp->fd(), true);
         dbPutField(&src.trigenable, DBR_ENUM, &src.trigstate, sizeof(src.trigstate));
     }
     void doConfigure(void) {
@@ -180,7 +182,7 @@ public:
 #define DummySize (1<<15)
 unsigned _dummy[DummySize/sizeof(unsigned)];
 
-unsigned flushInputQueue(int f, bool printFlag) {
+static unsigned flushInputQueue(int f, bool printFlag) {
   fd_set          fds;
   struct timeval  timeout;
   timeout.tv_sec  = 0;
@@ -258,7 +260,6 @@ static int PGPHandlerThread(void *p)
                 (*pgp->src.rcvfunc)(PGP_Free, d);
                 continue;
             }
-            printf("Data from lane %d, vc %d, size %d\n", f->lane(), f->vc(), d->size);
             if (PGP_reg_debug)
                 f->print(d->size);
             (*pgp->src.rcvfunc)(PGP_Receive, d);

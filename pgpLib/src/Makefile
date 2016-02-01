@@ -15,7 +15,7 @@ LIBRARY_IOC_Linux = pgp
 DBD += pgp.dbd
 
 # Add any header files here which should be installed
-INC	+=	PGP_extern.h
+INC	+=	PGP_extern.h aSubRecord2.h
 
 # Add any html documentation here
 # HTMLS	+=	index.html
