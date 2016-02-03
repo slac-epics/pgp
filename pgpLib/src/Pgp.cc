@@ -27,6 +27,7 @@ namespace Pds {
       } else {
         sprintf(devName, "/dev/pgpcard_%u_%u", f & 0xf, ports);
       }
+      printf("Opening %s\n", devName);
       _fd = open( devName,  O_RDWR | O_NONBLOCK);
       if (_fd < 0) {
         sprintf(err, "Pgp::Pgp() opening %s failed", devName);

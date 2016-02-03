@@ -166,11 +166,11 @@ public:
     void doConfigure(void) {
         int i;
         unsigned val;
-        for (i = 0; i < cfgmax; i++) {
+        for (i = 0; i <= cfgmax; i++) {
             printf("Writing 0x%x to address %d\n", cfg[i].val->val, cfg[i].addr);
             pgp->writeRegister(cfg[i].dest, cfg[i].addr, cfg[i].val->val, PGP_reg_debug, PgpRSBits::notWaiting);
         }
-        for (i = 0; i < cfgmax; i++) {
+        for (i = 0; i <= cfgmax; i++) {
             pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
             printf("Read 0x%x from address %d\n", val, cfg[i].addr);
             cfg[i].rbv->val = val;
@@ -251,6 +251,7 @@ static int PGPHandlerThread(void *p)
             dbScanUnlock((dbCommon *)cfgrec);
         }
         if (FD_ISSET(pgpfd, &fds)) {
+            printf("DATA!\n");
             pgp_data *d = (*pgp->src.rcvfunc)(PGP_Alloc, pgp->src.dev_token);
             d->pgp_token = pgp;
             d->size = d->maxsize;
