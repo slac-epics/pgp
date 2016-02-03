@@ -28,7 +28,6 @@ namespace Pds {
         sprintf(devName, "/dev/pgpcard_%u_%u", f & 0xf, ports);
       }
       _fd = open( devName,  O_RDWR | O_NONBLOCK);
-      printf("pgpcard file number %d\n", _fd);
       if (_fd < 0) {
         sprintf(err, "Pgp::Pgp() opening %s failed", devName);
         perror(err);

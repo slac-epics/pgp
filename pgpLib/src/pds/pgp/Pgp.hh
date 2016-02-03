@@ -19,7 +19,7 @@ namespace Pds {
 
     class Pgp {
       public:
-        Pgp(int, bool printFlag = true);
+        Pgp(int, bool printFlag = false);
         virtual ~Pgp();
 
       public:
