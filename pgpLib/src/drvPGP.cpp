@@ -240,15 +240,19 @@ static int PGPHandlerThread(void *p)
         }
         if (FD_ISSET(cfgfd, &fds)) {
             read(cfgfd, &cfgrec, sizeof(cfgrec));
-            pgp->disableSrc();
-            flushInputQueue(pgpfd, false);
-            pgp->doConfigure();
-            pgp->enableSrc();
-            pgp->cfgstate = PGPCARD::CfgDone;
-            cfgrec->pact = FALSE;
-            dbScanLock((dbCommon *)cfgrec);
-            dbProcess((dbCommon *)cfgrec);
-            dbScanUnlock((dbCommon *)cfgrec);
+            if (cfgrec) {
+                pgp->disableSrc();
+                flushInputQueue(pgpfd, false);
+                pgp->doConfigure();
+                pgp->enableSrc();
+                pgp->cfgstate = PGPCARD::CfgDone;
+                cfgrec->pact = FALSE;
+                dbScanLock((dbCommon *)cfgrec);
+                dbProcess((dbCommon *)cfgrec);
+                dbScanUnlock((dbCommon *)cfgrec);
+            } else {
+                sleep(1);  // This is for debugging!
+            }
         }
         if (FD_ISSET(pgpfd, &fds)) {
             printf("DATA!\n");
@@ -325,6 +329,14 @@ unsigned PGP_register_read(void *pgp_token, int lane, int vc, unsigned addr, uns
     else
         printf("Read from address %d failed!\n", addr);
     return result;
+}
+
+void PGP_pause(void *pgp_token)
+{
+    PGPCARD *pgp = (PGPCARD *)pgp_token;
+    void *r = NULL;
+    write(pgp->cfgpipe[1], &r, sizeof(r));  // Wake up the thread and make him sleep!
+    usleep(5000);
 }
 
 epicsStatus PgpReport(int level)

@@ -38,4 +38,5 @@ extern "C" {
     void  PGP_receive_data(void *token, pgp_data *data);
     unsigned PGP_register_write(void *token, int lane, int vc, unsigned addr, unsigned value);
     unsigned PGP_register_read(void *token, int lane, int vc, unsigned addr, unsigned *value);
+    void PGP_pause(void *token);  // For debugging!
 };
