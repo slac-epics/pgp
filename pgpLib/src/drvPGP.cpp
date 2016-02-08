@@ -179,8 +179,8 @@ public:
     }
 };
 
-#define DummySize (1<<15)
-unsigned _dummy[DummySize/sizeof(unsigned)];
+#define DummySize (256*1024)
+unsigned _dummy[DummySize];
 
 static unsigned flushInputQueue(int f, bool printFlag) {
   fd_set          fds;
@@ -255,7 +255,6 @@ static int PGPHandlerThread(void *p)
             }
         }
         if (FD_ISSET(pgpfd, &fds)) {
-            printf("DATA!\n");
             pgp_data *d = (*pgp->src.rcvfunc)(PGP_Alloc, pgp->src.dev_token);
             d->pgp_token = pgp;
             d->size = d->maxsize;
