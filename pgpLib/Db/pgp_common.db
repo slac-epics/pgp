@@ -26,5 +26,6 @@ record(aSub,  "${BASE}:DO_CONFIG")
   field(SNAM,  "PGPDoConfigure")
   field(INPA,  "${BASE}:BOX")
   field(FTA,   "STRING")
+  field(FLNK,  "${POSTCFG}")
 }
 

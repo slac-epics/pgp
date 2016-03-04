@@ -264,6 +264,9 @@ static int PGPHandlerThread(void *p)
                 (*pgp->src.rcvfunc)(PGP_Free, d);
                 continue;
             }
+#if 0
+            printf("DATA %d @%x (acq=%d, seq=%d)\n", d->size, evrGetLastFiducial(), d->data[1], d->data[2]);
+#endif
             if (PGP_reg_debug)
                 f->print(d->size);
             (*pgp->src.rcvfunc)(PGP_Receive, d);
