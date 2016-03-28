@@ -96,14 +96,15 @@ public:
 private:
     void addCfg(int seq) {
         if (seq >= cfgsize) {
-            cfgsize = (seq + CFGINC - 1) / CFGINC;
-            cfgsize *= CFGINC;
+            int old = cfgsize;
+            while (seq >= cfgsize) {
+                cfgsize = cfgsize + CFGINC;
+            }
             cfg = (struct cfgelem *)realloc(cfg, cfgsize*sizeof(struct cfgelem));
+            memset(&cfg[old], 0, sizeof(cfgelem)*(cfgsize - old));
         }
-        while (seq > cfgmax) {
-            cfgmax++;
-            cfg[cfgmax].rbv = NULL;
-            cfg[cfgmax].val = NULL;
+        if (seq > cfgmax) {
+            cfgmax = seq;
         }
     }
 public:
@@ -167,14 +168,22 @@ public:
         int i;
         unsigned val;
         for (i = 0; i <= cfgmax; i++) {
-            printf("Writing 0x%x to address %d\n", cfg[i].val->val, cfg[i].addr);
-            pgp->writeRegister(cfg[i].dest, cfg[i].addr, cfg[i].val->val, PGP_reg_debug, PgpRSBits::notWaiting);
+            if (cfg[i].val) {
+                printf("%d: Writing 0x%x to address %d\n", i, cfg[i].val->val, cfg[i].addr);
+                pgp->writeRegister(cfg[i].dest, cfg[i].addr, cfg[i].val->val, PGP_reg_debug, PgpRSBits::notWaiting);
+            } else {
+                printf("%d: WARNING: No write entry!!\n", i);
+            }
         }
         for (i = 0; i <= cfgmax; i++) {
-            pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
-            printf("Read 0x%x from address %d\n", val, cfg[i].addr);
-            cfg[i].rbv->val = val;
-            db_post_events(cfg[i].rbv, &cfg[i].rbv->val, DBE_VALUE);
+            if (cfg[i].rbv) {
+                pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
+                printf("Read 0x%x from address %d\n", val, cfg[i].addr);
+                cfg[i].rbv->val = val;
+                db_post_events(cfg[i].rbv, &cfg[i].rbv->val, DBE_VALUE);
+            } else {
+                printf("%d: WARNING: No readback entry!!\n", i);
+            }
         }
     }
 };
@@ -377,6 +386,7 @@ void PgpRegister(char *name, int lane)
     epicsMutexLock(PGPlock);
     ellAdd(&PGPCards, (ELLNODE *)pdevice);
     epicsMutexUnlock(PGPlock);
+    printf("PGP card %s is registered!\n", name);
 }
 
 static long init_li_record(void* record)
