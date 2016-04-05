@@ -14,7 +14,7 @@ EPICS_BASE=$(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
 # ===============================================================
 IOCADMIN_MODULE_VERSION=R3.0.0-2.0.2
 AUTOSAVE_MODULE_VERSION=R5.1-0.3.0
-EVENT2_MODULE_VERSION=R4.0.0-2.14.0
+EVENT2_MODULE_VERSION=R4.0.0-3.1.0
 TIMESYNC_MODULE_VERSION=R1.1.8
 
 # ============================================================

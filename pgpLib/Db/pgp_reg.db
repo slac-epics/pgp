@@ -12,6 +12,6 @@ record(longin,"$(BASE):${REG}_RBV")
 {
    field(DESC, "PGP Register")
    field(DTYP, "PGP")
-   field(INP,  "@${BOX} ${SEQ}")
+   field(INP,  "@${BOX} ${LANE} ${VC} ${ADDR} ${SEQ}")
 }
 

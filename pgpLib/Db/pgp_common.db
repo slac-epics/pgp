@@ -19,13 +19,36 @@ record(stringout, "${BASE}:BOX")
   field(VAL,   "${BOX}")
 }
 
-record(aSub,  "${BASE}:DO_CONFIG")
+record(dfanout, "${BASE}:DO_CONFIG")
+{
+  field(DESC,  "Start configuration")
+  field(OUTA,  "${BASE}:CFG_DONE PP")
+  field(OUTB,  "${BASE}:CFG_ERRS PP")
+  field(FLNK,  "${BASE}:START_CFG")
+}
+
+record(aSub,  "${BASE}:START_CFG")
 {
   field(DESC,  "Configure PGPCARD")
   field(SCAN,  "Passive")
   field(SNAM,  "PGPDoConfigure")
   field(INPA,  "${BASE}:BOX")
   field(FTA,   "STRING")
+  field(OUTA,  "${BASE}:CFG_ERRS PP")
+  field(FTVA,  "LONG")
+  field(OUTB,  "${BASE}:CFG_DONE PP")
+  field(FTVB,  "LONG")
   field(FLNK,  "${POSTCFG}")
 }
 
+record(longin, "${BASE}:CFG_DONE")
+{
+  field(DESC, "PGPCARD config complete")
+  field(VAL,  "0")
+}
+
+record(longin, "${BASE}:CFG_ERRS")
+{
+  field(DESC, "PGPCARD configuration errors")
+  field(VAL,  "0")
+}

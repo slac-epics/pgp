@@ -5,6 +5,7 @@
 #include<epicsStdlib.h>
 #include<epicsString.h>
 #include<epicsThread.h>
+#include<epicsTypes.h>
 #include<devSup.h>
 #include<drvSup.h>
 #include<iocsh.h> 
@@ -72,6 +73,7 @@ public:
         Destination *dest;
     } *cfg;
     enum CfgState { CfgIdle, CfgActive, CfgDone} cfgstate;
+    int cfgerrs;
     struct srchandler src;
 
     PGPCARD(char *_name, int _lane) {
@@ -84,7 +86,7 @@ public:
         }
         cfgsize = CFGINC;
         cfgmax  = -1;
-        cfg = (struct cfgelem *)malloc(CFGINC*sizeof(struct cfgelem));
+        cfg = (struct cfgelem *)calloc(CFGINC, sizeof(struct cfgelem));
         epicsThreadMustCreate("PGPHandler", epicsThreadPriorityHigh,
                               epicsThreadGetStackSize(epicsThreadStackMedium),
                               (EPICSTHREADFUNC)PGPHandlerThread,this);
@@ -108,17 +110,25 @@ private:
         }
     }
 public:
-    void addCfgIn(struct longinRecord *r, int seq) {
+    void addCfgIn(struct longinRecord *r, int lane, int vc, int addr, int seq) {
         addCfg(seq);
         cfg[seq].rbv = r;
+        if (cfg[seq].dest == NULL) {
+            cfg[seq].lane = lane;
+            cfg[seq].vc   = vc;
+            cfg[seq].addr = addr;
+            cfg[seq].dest = new Destination((lane << 2) | (vc & 3));
+        }
     }
     void addCfgOut(struct longoutRecord *r, int lane, int vc, int addr, int seq) {
         addCfg(seq);
         cfg[seq].val = r;
-        cfg[seq].lane = lane;
-        cfg[seq].vc = vc;
-        cfg[seq].addr = addr;
-        cfg[seq].dest = new Destination((lane << 2) | (vc & 3));
+        if (cfg[seq].dest == NULL) {
+            cfg[seq].lane = lane;
+            cfg[seq].vc   = vc;
+            cfg[seq].addr = addr;
+            cfg[seq].dest = new Destination((lane << 2) | (vc & 3));
+        }
     }
     void *addSrc(int lane, int vc, char *trigger, PGP_rcvfunc rcvfunc, PGP_enfunc enfunc, void *dev_token) {
         src.lane      = lane;
@@ -144,6 +154,8 @@ public:
         case CfgActive:
             break;                             // Do nothing!
         case CfgDone:
+            *(epicsInt32 *)r->vala = cfgerrs;
+            *(epicsInt32 *)r->valb = 1;
             cfgstate = CfgIdle;                // Finished!
             break;
         }
@@ -167,6 +179,7 @@ public:
     void doConfigure(void) {
         int i;
         unsigned val;
+        cfgerrs = 0;
         for (i = 0; i <= cfgmax; i++) {
             if (cfg[i].val) {
                 printf("%d: Writing 0x%x to address %d\n", i, cfg[i].val->val, cfg[i].addr);
@@ -180,6 +193,10 @@ public:
                 pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
                 printf("Read 0x%x from address %d\n", val, cfg[i].addr);
                 cfg[i].rbv->val = val;
+                if (cfg[i].val && cfg[i].rbv->val != cfg[i].val->val) {
+                    printf("Mismatch on address %d!\n", cfg[i].addr);
+                    cfgerrs++;
+                }
                 db_post_events(cfg[i].rbv, &cfg[i].rbv->val, DBE_VALUE);
             } else {
                 printf("%d: WARNING: No readback entry!!\n", i);
@@ -393,7 +410,7 @@ static long init_li_record(void* record)
 {
     longinRecord* r = reinterpret_cast<longinRecord*>(record);
     char boxname[MAX_CA_STRING_SIZE];
-    int seq;
+    int lane, vc, addr, seq;
     PGPCARD *pgp = NULL;
 
     if (r->inp.type != INST_IO) {
@@ -401,7 +418,7 @@ static long init_li_record(void* record)
         r->pact=TRUE;
         return (S_db_badField);
     }
-    if (sscanf(r->inp.value.instio.string, "%[^ ] %i", boxname, &seq) != 2) {
+    if (sscanf(r->inp.value.instio.string, "%[^ ] %i %i %i %i", boxname, &lane, &vc, &addr, &seq) != 5) {
         printf("Badly formated INP for longin record %s: %s\n", r->name, r->inp.value.instio.string);
         r->pact=TRUE;
         return -1;
@@ -413,7 +430,7 @@ static long init_li_record(void* record)
         return -1;
     }
     r->dpvt = (void *)pgp;
-    pgp->addCfgIn(r, seq);
+    pgp->addCfgIn(r, lane, vc, addr, seq);
     return 0;
 }
 

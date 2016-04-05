@@ -13,6 +13,7 @@ include $(TOP)/configure/CONFIG
 # DB += pgp.db
 DB += pgp_common.db
 DB += pgp_reg.db
+DB += pgp_reg_rbonly.db
 
 #----------------------------------------------------
 # Create and install (or just install)
