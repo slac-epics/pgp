@@ -77,9 +77,23 @@ public:
     struct srchandler src;
 
     PGPCARD(char *_name, int _lane) {
+        PgpCardStatus status;
+
         cfgstate = CfgIdle;
         name = epicsStrDup(_name);
         pgp = new Pgp(_lane);
+        pgp->readStatus(&status);
+        printf("Checking link status of %s:\n", name);
+        printf("    Local:  %2d %2d %2d %2d\n", 
+               status.PgpLink[0].PgpLocLinkReady,
+               status.PgpLink[1].PgpLocLinkReady,
+               status.PgpLink[2].PgpLocLinkReady,
+               status.PgpLink[3].PgpLocLinkReady);
+        printf("    Remote: %2d %2d %2d %2d\n", 
+               status.PgpLink[0].PgpRemLinkReady,
+               status.PgpLink[1].PgpRemLinkReady,
+               status.PgpLink[2].PgpRemLinkReady,
+               status.PgpLink[3].PgpRemLinkReady);
         if (pipe(cfgpipe) == -1) {
             printf("pipe creation failed!\n");
             epicsThreadSuspendSelf();
