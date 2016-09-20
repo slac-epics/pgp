@@ -19,7 +19,7 @@ namespace Pds {
 
     class Pgp {
       public:
-        Pgp(int, bool printFlag = false);
+        Pgp(int, int, int, bool printFlag = false);
         virtual ~Pgp();
 
       public:
@@ -51,16 +51,18 @@ namespace Pds {
                           uint32_t*,
                           unsigned size=1,
                           bool pf=false);
-        unsigned      readStatus( PgpCardStatus* );
+        unsigned      readStatus( void * );
         unsigned      stopPolling();
         int      IoctlCommand(unsigned command, unsigned arg = 0);
 
         void          portOffset(unsigned p) { _portOffset = p;    }
         unsigned      portOffset()           { return _portOffset; }
         int           fd()                   { return _fd; }
+        int           G3()                   { return _G3; }
 
       private:
         int        _fd;
+        int        _G3;
         unsigned   _readBuffer[BufferWords];
         unsigned   _portOffset;
     };

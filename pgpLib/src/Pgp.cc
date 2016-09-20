@@ -16,17 +16,15 @@ namespace Pds {
 
   namespace Pgp {
 
-    // MCB - No longer passing a fd, now just the port/lane information.
-    Pgp::Pgp(int f, bool pf) {
+    // MCB - No longer passing a fd, now just the port/lane/VC/G3 information.
+    Pgp::Pgp(int f, int vcm, int G3, bool pf) {
       unsigned ports = (f >> 4) & 0xf;
       char devName[128];
       char err[128];
-      if (ports == 0) {
+      _G3 = G3;
+      if (ports == 0 && !G3)
         ports = 15;
-        sprintf(devName, "/dev/pgpcard%u", f);
-      } else {
-        sprintf(devName, "/dev/pgpcard_%u_%u", f & 0xf, ports);
-      }
+      sprintf(devName, "/dev/pgpcard%s_%u_%u", G3 ? "G3" : "", f & 0xf, ports);
       printf("Opening %s\n", devName);
       _fd = open( devName,  O_RDWR | O_NONBLOCK);
       if (_fd < 0) {
@@ -34,10 +32,16 @@ namespace Pds {
         perror(err);
         ::exit(-1);
       }
-      _portOffset = 0;
-      while ((((ports>>_portOffset) & 1) == 0) && (_portOffset < 5)) {
+      if (G3) {
+        _portOffset = ports - 1;
+      } else {
+        _portOffset = 0;
+        while ((((ports>>_portOffset) & 1) == 0) && (_portOffset < 4)) {
           _portOffset += 1;
+        }
       }
+      if (vcm)
+        IoctlCommand(IOCTL_Set_VC_Mask, (vcm<<8) | _portOffset);
       // End MCB changes.
       if (pf) printf("Pgp::Pgp(fd(%d)), offset(%u)\n", _fd, _portOffset);
       for (int i=0; i<BufferWords; i++) _readBuffer[i] = i;
@@ -145,13 +149,13 @@ namespace Pds {
       return ret;
     }
 
-    unsigned Pgp::readStatus(PgpCardStatus* s) {
-      PgpCardTx* p = (PgpCardTx*) s;
+    unsigned Pgp::readStatus(void* s) {
+      PgpCardTx p;
 
-      p->model = sizeof(p);
-      p->cmd   = IOCTL_Read_Status;
-      p->data  = (__u32*) s;
-      return(write(_fd, p, sizeof(PgpCardStatus)));
+      p.model = sizeof(s);
+      p.cmd   = IOCTL_Read_Status;
+      p.data  = (__u32*) s;
+      return(write(_fd, &p, sizeof(PgpCardTx)));
     }
 
     unsigned Pgp::stopPolling() {
@@ -169,16 +173,28 @@ namespace Pds {
         uint32_t data,
         bool printFlag,
         Pds::Pgp::PgpRSBits::waitState w) {
-      Pds::Pgp::RegisterSlaveExportFrame rsef = Pds::Pgp::RegisterSlaveExportFrame::RegisterSlaveExportFrame(
-              this,
-              Pds::Pgp::PgpRSBits::write,
-              dest,
-              addr,
-              0x6969,
-              data,
-              w);
-      if (printFlag) rsef.print();
-      return rsef.post(_fd, sizeof(rsef)/sizeof(uint32_t));
+        if (addr != 0xffffffff) {
+            Pds::Pgp::RegisterSlaveExportFrame rsef = Pds::Pgp::RegisterSlaveExportFrame::RegisterSlaveExportFrame(
+                  this,
+                  Pds::Pgp::PgpRSBits::write,
+                  dest,
+                  addr,
+                  0x6969,
+                  data,
+                  w);
+            if (printFlag) rsef.print();
+            return rsef.post(_fd, sizeof(rsef)/sizeof(uint32_t));
+        } else {
+          PgpCardTx           tx;
+	  tx.model = sizeof(&tx);
+	  tx.cmd   = IOCTL_Normal_Write;
+	  tx.pgpLane = (dest->lane() & (_G3 ? 3 : 7)) + portOffset();
+	  tx.pgpVc = dest->vc() & 3;
+	  tx.size = 1;
+	  tx.data = &data;
+	  write(_fd, &tx, sizeof(tx));
+          return Success;
+        }
     }
 
     unsigned Pgp::writeRegisterBlock(

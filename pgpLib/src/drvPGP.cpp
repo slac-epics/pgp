@@ -76,24 +76,49 @@ public:
     int cfgerrs;
     struct srchandler src;
 
-    PGPCARD(char *_name, int _lane) {
-        PgpCardStatus status;
-
+    PGPCARD(char *_name, int _lane, int _vcm, int _G3) {
         cfgstate = CfgIdle;
         name = epicsStrDup(_name);
-        pgp = new Pgp(_lane);
-        pgp->readStatus(&status);
-        printf("Checking link status of %s:\n", name);
-        printf("    Local:  %2d %2d %2d %2d\n", 
-               status.PgpLink[0].PgpLocLinkReady,
-               status.PgpLink[1].PgpLocLinkReady,
-               status.PgpLink[2].PgpLocLinkReady,
-               status.PgpLink[3].PgpLocLinkReady);
-        printf("    Remote: %2d %2d %2d %2d\n", 
-               status.PgpLink[0].PgpRemLinkReady,
-               status.PgpLink[1].PgpRemLinkReady,
-               status.PgpLink[2].PgpRemLinkReady,
-               status.PgpLink[3].PgpRemLinkReady);
+        pgp = new Pgp(_lane, _vcm, _G3);
+        if (_G3) {
+            PgpCardG3Status status;
+
+            pgp->readStatus(&status);
+            printf("Checking link status of %s:\n", name);
+            printf("    Local:  %2d %2d %2d %2d %2d %2d %2d %2d\n", 
+                   status.PgpLocLinkReady[0],
+                   status.PgpLocLinkReady[1],
+                   status.PgpLocLinkReady[2],
+                   status.PgpLocLinkReady[3],
+                   status.PgpLocLinkReady[4],
+                   status.PgpLocLinkReady[5],
+                   status.PgpLocLinkReady[6],
+                   status.PgpLocLinkReady[7]);
+            printf("    Remote: %2d %2d %2d %2d %2d %2d %2d %2d\n", 
+                   status.PgpRemLinkReady[0],
+                   status.PgpRemLinkReady[1],
+                   status.PgpRemLinkReady[2],
+                   status.PgpRemLinkReady[3],
+                   status.PgpRemLinkReady[4],
+                   status.PgpRemLinkReady[5],
+                   status.PgpRemLinkReady[6],
+                   status.PgpRemLinkReady[7]);
+        } else {
+            PgpCardStatus status;
+
+            pgp->readStatus(&status);
+            printf("Checking link status of %s:\n", name);
+            printf("    Local:  %2d %2d %2d %2d\n", 
+                   status.PgpLink[0].PgpLocLinkReady,
+                   status.PgpLink[1].PgpLocLinkReady,
+                   status.PgpLink[2].PgpLocLinkReady,
+                   status.PgpLink[3].PgpLocLinkReady);
+            printf("    Remote: %2d %2d %2d %2d\n", 
+                   status.PgpLink[0].PgpRemLinkReady,
+                   status.PgpLink[1].PgpRemLinkReady,
+                   status.PgpLink[2].PgpRemLinkReady,
+                   status.PgpLink[3].PgpRemLinkReady);
+        }
         if (pipe(cfgpipe) == -1) {
             printf("pipe creation failed!\n");
             epicsThreadSuspendSelf();
@@ -402,7 +427,7 @@ epicsStatus PgpInit (void)
     return 0;
 }
 
-void PgpRegister(char *name, int lane)
+void PgpRegister(char *name, int lane, int vcm, int G3)
 {
     PGPCARD  *pdevice = NULL;
 
@@ -412,7 +437,7 @@ void PgpRegister(char *name, int lane)
         epicsThreadSuspendSelf();
     }
 
-    pdevice = new PGPCARD(name, lane);
+    pdevice = new PGPCARD(name, lane, vcm, G3);
 
     epicsMutexLock(PGPlock);
     ellAdd(&PGPCards, (ELLNODE *)pdevice);
@@ -625,15 +650,19 @@ epicsExportAddress(dset, devPGPwave);
 /* iocsh command: PgpRegister */
 static const iocshArg PgpRegisterArg0 = {"name"   ,    iocshArgString};
 static const iocshArg PgpRegisterArg1 = {"lane"   ,    iocshArgInt};
-static const iocshArg *const PgpRegisterArgs[2] = {
+static const iocshArg PgpRegisterArg2 = {"vcm"    ,    iocshArgInt};
+static const iocshArg PgpRegisterArg3 = {"G3"     ,    iocshArgInt};
+static const iocshArg *const PgpRegisterArgs[4] = {
     &PgpRegisterArg0,
     &PgpRegisterArg1,
+    &PgpRegisterArg2,
+    &PgpRegisterArg3,
 };
-static const iocshFuncDef PgpRegisterDef = {"PgpRegister", 2, PgpRegisterArgs};
+static const iocshFuncDef PgpRegisterDef = {"PgpRegister", 4, PgpRegisterArgs};
 
 static void PgpRegisterCall(const iocshArgBuf * args)
 {
-    PgpRegister(args[0].sval, args[1].ival);
+    PgpRegister(args[0].sval, args[1].ival, args[2].ival, args[3].ival);
 }
 
 /* Registration APIs */
