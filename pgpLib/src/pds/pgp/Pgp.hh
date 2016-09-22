@@ -65,6 +65,7 @@ namespace Pds {
         int        _G3;
         unsigned   _readBuffer[BufferWords];
         unsigned   _portOffset;
+        unsigned   _globValue;   /* The value of "global" register 0xffffffff. */
     };
   }
 }

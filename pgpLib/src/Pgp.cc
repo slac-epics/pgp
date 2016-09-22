@@ -193,6 +193,7 @@ namespace Pds {
 	  tx.size = 1;
 	  tx.data = &data;
 	  write(_fd, &tx, sizeof(tx));
+          _globValue = data;
           return Success;
         }
     }
@@ -230,40 +231,41 @@ namespace Pds {
         unsigned size,
         bool pf) {
       Pds::Pgp::RegisterSlaveImportFrame* rsif;
-      Pds::Pgp::RegisterSlaveExportFrame  rsef = Pds::Pgp::RegisterSlaveExportFrame::RegisterSlaveExportFrame(
-          this,
-          Pds::Pgp::PgpRSBits::read,
-          dest,
-          addr,
-          tid,
-          size - 1,  // zero = one uint32_t, etc.
-          Pds::Pgp::PgpRSBits::Waiting);
-//      if (size>1) {
-//        printf("Pgp::readRegister size %u\n", size);
-//        rsef.print();
-//      }
-      if (pf) rsef.print();
-      if (rsef.post(_fd, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t),pf) != Success) {
-        printf("Pgp::readRegister failed, export frame follows.\n");
-        rsef.print(0, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t));
-        return  Failure;
-      }
-      unsigned errorCount = 0;
-      while (true) {
-        rsif = this->read(size + 3);
-        if (rsif == 0) {
-          printf("Pgp::readRegister _pgp->read failed!\n");
-          return Failure;
-        }
-        if (pf) rsif->print(size + 3);
-        if (addr != rsif->addr()) {
-          printf("Pds::Pgp::readRegister out of order response lane=%u, vc=%u, addr=0x%x, tid=%u, errorCount=%u\n",
-              dest->lane(), dest->vc(), addr, tid, ++errorCount);
-          rsif->print(size + 3);
-          if (errorCount > 5) return Failure;
-        } else {  // copy the data
-          memcpy(retp, rsif->array(), size * sizeof(uint32_t));
+      if (addr == 0xffffffff) {
+          *retp = _globValue;
           return Success;
+      } else {
+        Pds::Pgp::RegisterSlaveExportFrame  rsef = Pds::Pgp::RegisterSlaveExportFrame::RegisterSlaveExportFrame(
+            this,
+            Pds::Pgp::PgpRSBits::read,
+            dest,
+            addr,
+            tid,
+            size - 1,  // zero = one uint32_t, etc.
+            Pds::Pgp::PgpRSBits::Waiting);
+        if (pf) rsef.print();
+        if (rsef.post(_fd, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t),pf) != Success) {
+          printf("Pgp::readRegister failed, export frame follows.\n");
+          rsef.print(0, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t));
+          return  Failure;
+        }
+        unsigned errorCount = 0;
+        while (true) {
+          rsif = this->read(size + 3);
+          if (rsif == 0) {
+            printf("Pgp::readRegister _pgp->read failed!\n");
+            return Failure;
+          }
+          if (pf) rsif->print(size + 3);
+          if (addr != rsif->addr()) {
+            printf("Pds::Pgp::readRegister out of order response lane=%u, vc=%u, addr=0x%x, tid=%u, errorCount=%u\n",
+                   dest->lane(), dest->vc(), addr, tid, ++errorCount);
+            rsif->print(size + 3);
+            if (errorCount > 5) return Failure;
+          } else {  // copy the data
+            memcpy(retp, rsif->array(), size * sizeof(uint32_t));
+            return Success;
+          }
         }
       }
     }
