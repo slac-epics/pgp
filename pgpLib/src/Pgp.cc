@@ -230,11 +230,11 @@ namespace Pds {
         uint32_t* retp,
         unsigned size,
         bool pf) {
-      Pds::Pgp::RegisterSlaveImportFrame* rsif;
       if (addr == 0xffffffff) {
           *retp = _globValue;
           return Success;
       } else {
+        Pds::Pgp::RegisterSlaveImportFrame* rsif;
         Pds::Pgp::RegisterSlaveExportFrame  rsef = Pds::Pgp::RegisterSlaveExportFrame::RegisterSlaveExportFrame(
             this,
             Pds::Pgp::PgpRSBits::read,
