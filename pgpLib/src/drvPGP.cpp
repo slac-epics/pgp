@@ -232,6 +232,9 @@ public:
                 pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
                 printf("Read 0x%x from address %d\n", val, cfg[i].addr);
                 cfg[i].rbv->val = val;
+                cfg[i].rbv->udf = 0;
+                recGblGetTimeStamp(cfg[i].rbv);
+                recGblResetAlarms(cfg[i].rbv);
                 if (cfg[i].val && cfg[i].rbv->val != cfg[i].val->val) {
                     printf("Mismatch on address %d!\n", cfg[i].addr);
                     cfgerrs++;
