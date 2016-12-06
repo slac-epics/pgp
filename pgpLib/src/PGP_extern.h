@@ -39,4 +39,7 @@ extern "C" {
     unsigned PGP_register_write(void *token, int lane, int vc, unsigned addr, unsigned value);
     unsigned PGP_register_read(void *token, int lane, int vc, unsigned addr, unsigned *value);
     void PGP_pause(void *token);  // For debugging!
+
+    // One-off register write function.
+    void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int value);
 };

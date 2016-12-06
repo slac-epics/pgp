@@ -409,6 +409,29 @@ void PGP_pause(void *pgp_token)
     usleep(5000);
 }
 
+static int bit[16] = {
+    -1,  0,  1, -1,  2, -1, -1, -1,
+     3, -1, -1, -1, -1, -1, -1, -1,
+};
+
+void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int value)
+{
+    if (bit[vcm] < 0) {
+        printf("PGP_writereg: illegal vcm = %x\n", vcm);
+        return;
+    }
+    Destination d(bit[vcm]); // Lane is always zero! */
+    Pgp *pgp = NULL;
+    try {
+        pgp = new Pgp(mask, vcm, g3);
+        pgp->writeRegister(&d, addr, value, PGP_reg_debug, PgpRSBits::notWaiting);
+        delete pgp;
+    }
+    catch(char const *s) {
+        printf("PGP_writereg: %s\n", s);
+    }
+}
+
 epicsStatus PgpReport(int level)
 {
     /* Print some debug stuff. */

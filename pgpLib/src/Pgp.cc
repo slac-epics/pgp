@@ -30,7 +30,7 @@ namespace Pds {
       if (_fd < 0) {
         sprintf(err, "Pgp::Pgp() opening %s failed", devName);
         perror(err);
-        ::exit(-1);
+        throw "Can't open file";
       }
       if (G3) {
         _portOffset = ports - 1;
@@ -47,7 +47,9 @@ namespace Pds {
       for (int i=0; i<BufferWords; i++) _readBuffer[i] = i;
     }
 
-    Pgp::~Pgp() {}
+    Pgp::~Pgp() {
+      close(_fd);
+    }
 
     Pds::Pgp::RegisterSlaveImportFrame* Pgp::do_read(unsigned *buffer, int *size) {
       Pds::Pgp::RegisterSlaveImportFrame* ret = (Pds::Pgp::RegisterSlaveImportFrame*)buffer;
