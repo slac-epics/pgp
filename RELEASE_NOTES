@@ -1,1 +1,14 @@
-TODO: Add notes on each release
+#
+# RELEASE_NOTES
+#
+R1.1.0	2017-05-15	Bruce Hill
+	Convert to git workflow
+
+R1.0.7	2016-12-06	Michael C. Browne
+	Add PGP_writereg for one-off writes, don't die if we can't open a card.
+
+R1.0.6	2016-10-14	Michael C. Browne
+	Make sure *RBV PVs get timestamps and no udf alarms.
+
+R1.0.5	2016-09-22	Michael C. Browne
+	Added G3 support and v2 driver support.
