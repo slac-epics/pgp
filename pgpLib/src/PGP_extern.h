@@ -24,6 +24,11 @@ extern "C" {
     enum PGP_rcvfunc_op { PGP_Alloc, PGP_Free, PGP_Receive };
     typedef pgp_data *(*PGP_rcvfunc)(enum PGP_rcvfunc_op, void *);
 
+    typedef struct pgp_reg_data_struct {
+        unsigned int addr;
+        unsigned int value;
+    } pgp_reg_data;
+
     //
     // void enfunc(int enable, void *dev_token)
     //       - Call back to the device to enable/disable it.
@@ -38,8 +43,12 @@ extern "C" {
     void  PGP_receive_data(void *token, pgp_data *data);
     unsigned PGP_register_write(void *token, int lane, int vc, unsigned addr, unsigned value);
     unsigned PGP_register_read(void *token, int lane, int vc, unsigned addr, unsigned *value);
+    unsigned PGP_write_data(void *token, int lane, int vc, unsigned value);
     void PGP_pause(void *token);  // For debugging!
 
     // One-off register write function.
     void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int value);
+    void PGP_writereg_bulk(int mask, int vcm, int g3, pgp_reg_data* reg_data, unsigned int size);
+    // Configure the on board evr (Note only configures run trigger and doesn't support accept triggers)
+    void PGP_configure_evr(int mask, int g3, unsigned int enable, unsigned int runCode, unsigned int runDelay);
 };

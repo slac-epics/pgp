@@ -16,8 +16,8 @@
 # ==========================================================
 IOCADMIN_MODULE_VERSION = R3.1.15-1.0.1
 AUTOSAVE_MODULE_VERSION = R5.7.1-2.0.0
-EVENT2_MODULE_VERSION   = R4.2.0
-TIMESYNC_MODULE_VERSION = R1.1.9
+EVENT2_MODULE_VERSION   = R4.3.0
+TIMESYNC_MODULE_VERSION = R1.1.11
 
 # ==========================================================
 # External Support module path definitions
@@ -43,5 +43,5 @@ EPICS_BASE = $(EPICS_SITE_TOP)/base/$(BASE_MODULE_VERSION)
 # Check for invalid or undefined EPICS_BASE
 -include $(TOP)/../../EPICS_BASE.check
 
-MY_MODULES=/reg/neh/home4/mcbrowne/trunk12/modules
+#MY_MODULES=/reg/neh/home4/mcbrowne/trunk12/modules
 #EVENT2=$(MY_MODULES)/event2-git

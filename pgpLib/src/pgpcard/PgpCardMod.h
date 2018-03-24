@@ -237,7 +237,7 @@ typedef struct {
 #define IOCTL_Evr_Fiducial           19
 #define IOCTL_Evr_LaneEnable         20
 #define IOCTL_Evr_LaneDisable        21
-#define IOCTL_Evr_Mask               22
+#define IOCTL_Evr_RunMask            22
 #define IOCTL_Evr_RunCode            23
 #define IOCTL_Evr_RunDelay           24
 #define IOCTL_Evr_AcceptCode         25
@@ -253,5 +253,6 @@ typedef struct {
 #define IOCTL_Add_More_Ports         33
 #define IOCTL_Set_VC_Mask            34
 #define IOCTL_Show_Version           35
-#define IOCTL_End_Of_List            36
+#define IOCTL_Clear_Run_Count        36
+#define IOCTL_End_Of_List            37
 #endif

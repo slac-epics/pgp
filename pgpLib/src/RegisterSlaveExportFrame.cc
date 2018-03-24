@@ -43,27 +43,53 @@ namespace Pds {
     }
 
     // parameter is the size of the post in number of 32 bit words
-    unsigned RegisterSlaveExportFrame::post(int _fd, __u32 size, bool pf) {
+    unsigned RegisterSlaveExportFrame::post(bool use_aes_driver, int _fd, __u32 size, bool pf) {
       struct timeval  timeout;
+      void*           pgpTxBuff = 0;
+      size_t          pgpTxSize = 0;
       PgpCardTx       pgpCardTx;
+      DmaWriteData    dmaWriteData;
       int             ret;
       fd_set          fds;
 
-      pgpCardTx.model   = (sizeof(&pgpCardTx));
-      pgpCardTx.cmd     = IOCTL_Normal_Write;
-      pgpCardTx.pgpVc   = bits._vc;
-      pgpCardTx.pgpLane = bits._lane;
-      pgpCardTx.size    = size;
-      pgpCardTx.data    = (__u32 *)this;
+      if (use_aes_driver) {
+        dmaWriteData.is32   = (sizeof(&dmaWriteData) == 4);
+        dmaWriteData.flags  = 0;
+        dmaWriteData.dest   = this->bits._vc | (this->bits._lane<<2);
+        dmaWriteData.index  = 0;
+        dmaWriteData.size   = size * sizeof(uint32_t);
+        dmaWriteData.data   = (__u64)this;
 
-      if (pf) {
-    	  printf("RSEF::post: model 0x%x, cmd 0x%x, vd 0x%x, lane 0x%x, size 0x%x, data 0x%p, fd(%d)\n",
-    			  pgpCardTx.model,
-    			  pgpCardTx.cmd,
-    			  pgpCardTx.pgpVc,
-    			  pgpCardTx.pgpLane,
-    			  pgpCardTx.size,
-                          pgpCardTx.data, _fd);
+        pgpTxBuff = &dmaWriteData;
+        pgpTxSize = sizeof(DmaReadData);
+
+        if (pf) {
+          printf("RSEF::post: dest 0x%x, size 0x%x, data 0x%lx\n",
+              dmaWriteData.dest,
+              dmaWriteData.size,
+              dmaWriteData.data);
+        }
+
+      } else {
+        pgpCardTx.model   = (sizeof(&pgpCardTx));
+        pgpCardTx.cmd     = IOCTL_Normal_Write;
+        pgpCardTx.pgpVc   = bits._vc;
+        pgpCardTx.pgpLane = bits._lane;
+        pgpCardTx.size    = size;
+        pgpCardTx.data    = (__u32 *)this;
+
+        pgpTxBuff = &pgpCardTx;
+        pgpTxSize = sizeof(PgpCardTx);
+
+        if (pf) {
+    	    printf("RSEF::post: model 0x%x, cmd 0x%x, vd 0x%x, lane 0x%x, size 0x%x, data 0x%p, fd(%d)\n",
+    			    pgpCardTx.model,
+    			    pgpCardTx.cmd,
+    			    pgpCardTx.pgpVc,
+    			    pgpCardTx.pgpLane,
+    			    pgpCardTx.size,
+              pgpCardTx.data, _fd);
+        }
       }
 
       // Wait for write ready
@@ -74,7 +100,7 @@ namespace Pds {
 //      uint32_t* u = (uint32_t*)this;
 //      printf("\n\t-->"); for (unsigned i=0;i<size;i++) printf("0x%x ", u[i]); printf("<--\n");
       if ((ret = select( _fd+1, NULL, &fds, NULL, &timeout)) > 0) {
-        ::write(_fd, &pgpCardTx, sizeof(pgpCardTx));
+        ::write(_fd, pgpTxBuff, pgpTxSize);
       } else {
         if (ret < 0) {
           perror("RegisterSlaveExportFrame post select error: ");

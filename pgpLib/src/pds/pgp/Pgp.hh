@@ -13,6 +13,7 @@
 #include "pds/pgp/RegisterSlaveExportFrame.hh"
 #include "pds/pgp/Destination.hh"
 #include "pgpcard/PgpCardMod.h"
+#include "pgpcard/PgpDriver.h"
 
 namespace Pds {
   namespace Pgp {
@@ -23,11 +24,16 @@ namespace Pds {
         virtual ~Pgp();
 
       public:
-        enum {BufferWords=2048};
+        enum {BufferWords=2048, DummyWords=256*1024};
         enum {Success=0, Failure=1, SelectSleepTimeUSec=10000};
+        enum {DirectWrite=0xffffffff};
         Pds::Pgp::RegisterSlaveImportFrame* do_read(unsigned *buffer, int *size);
         Pds::Pgp::RegisterSlaveImportFrame* read(
                           unsigned size = (sizeof(Pds::Pgp::RegisterSlaveImportFrame)/sizeof(uint32_t)));
+        unsigned       writeData(
+                          Destination*,
+                          uint32_t,
+                          bool pf=false);
         unsigned       writeRegister(
                           Destination*,
                           unsigned,
@@ -51,21 +57,32 @@ namespace Pds {
                           uint32_t*,
                           unsigned size=1,
                           bool pf=false);
+        unsigned      enableRunTrigger(
+                          uint32_t enable,
+                          uint32_t runCode,
+                          uint32_t runDelay,
+                          bool printFlag=false);
         unsigned      readStatus( void * );
         unsigned      stopPolling();
+        unsigned      flushInputQueue(bool printFlag=false);
+        unsigned      lastWriteData(Destination*, uint32_t*);
         int      IoctlCommand(unsigned command, unsigned arg = 0);
 
         void          portOffset(unsigned p) { _portOffset = p;    }
         unsigned      portOffset()           { return _portOffset; }
         int           fd()                   { return _fd; }
         int           G3()                   { return _G3; }
+        bool          usingAesDriver()       { return _useAesDriver; }
 
       private:
         int        _fd;
         int        _G3;
         unsigned   _readBuffer[BufferWords];
+        unsigned   _dummyBuffer[DummyWords];
         unsigned   _portOffset;
-        unsigned   _globValue;   /* The value of "global" register 0xffffffff. */
+        unsigned   _directWrites[4];
+        bool       _useAesDriver;
+        unsigned*  _dummy;
     };
   }
 }
