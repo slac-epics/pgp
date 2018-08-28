@@ -401,7 +401,7 @@ namespace Pds {
         size - 1,  // zero = one uint32_t, etc.
         Pds::Pgp::PgpRSBits::Waiting);
       if (pf) rsef.print();
-      if (rsef.post(_fd, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t),pf) != Success) {
+      if (rsef.post(_useAesDriver, _fd, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t),pf) != Success) {
         printf("Pgp::readRegister failed, export frame follows.\n");
         rsef.print(0, sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t));
         return  Failure;
