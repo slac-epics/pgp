@@ -175,7 +175,7 @@ namespace Pds {
       bool   found  = false;
       while (found == false) {
         if ((sret = select(_fd+1,&fds,NULL,NULL,&timeout)) > 0) {
-          if ((readRet = ::read(_fd, &pgpRxBuff, pgpRxSize)) >= 0) {
+          if ((readRet = ::read(_fd, pgpRxBuff, pgpRxSize)) >= 0) {
             if ((ret->waiting() == Pds::Pgp::PgpRSBits::Waiting) || (ret->opcode() == Pds::Pgp::PgpRSBits::read)) {
               found = true;
               if (_useAesDriver ? dmaReadData.error : (pgpCardRx.eofe || pgpCardRx.fifoErr || pgpCardRx.lengthErr)) {
