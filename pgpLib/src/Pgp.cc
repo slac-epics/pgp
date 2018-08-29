@@ -100,11 +100,16 @@ namespace Pds {
         pgpRxSize = sizeof(PgpCardRx);
       }
       if ((retSize = ::read(_fd, pgpRxBuff, pgpRxSize)) >= 0) {
+          if (_useAesDriver) {
+            *size = (retSize / sizeof(uint32_t));
+          } else {
+            *size = retSize;
+          }
           if (_useAesDriver ? dmaReadData.error : (pgpCardRx.eofe || pgpCardRx.fifoErr || pgpCardRx.lengthErr)) {
             if (_useAesDriver) {
               printf("Pgp::read error fifoErr(%u), lengthErr(%u), maxErr(%u), busErr(%u)\n",
                      dmaReadData.error&DMA_ERR_FIFO, dmaReadData.error&DMA_ERR_LEN, dmaReadData.error&DMA_ERR_MAX, dmaReadData.error&DMA_ERR_BUS);
-              printf("\tpgpLane(%u), pgpVc(%u)\n", pgpGetLane(dmaReadData.dest), pgpGetVc(dmaReadData.dest));
+              printf("\tpgpLane(%u), pgpVc(%u), size(%d)\n", pgpGetLane(dmaReadData.dest), pgpGetVc(dmaReadData.dest), *size);
             } else {
               printf("Pgp::do_read error eofe(%u), fifoErr(%u), lengthErr(%u)\n",
                      pgpCardRx.eofe, pgpCardRx.fifoErr, pgpCardRx.lengthErr);
