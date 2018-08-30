@@ -437,6 +437,7 @@ namespace Pds {
       timeout.tv_sec  = 0;
       timeout.tv_usec = 2500;
       int ret;
+      int read_ret;
       unsigned count = 0;
       void*           pgpRxBuff = 0;
       size_t          pgpRxSize = 0;
@@ -456,6 +457,9 @@ namespace Pds {
         pgpCardRx.model   = sizeof(&pgpCardRx);
         pgpCardRx.maxSize = DummyWords;
         pgpCardRx.data    = _dummy;
+        pgpCardRx.pgpLane = 0;
+        pgpCardRx.pgpVc   = 0;
+        pgpCardRx.rxSize  = 0;
         pgpRxBuff = &pgpCardRx;
         pgpRxSize = sizeof(PgpCardRx);
       }
@@ -465,7 +469,12 @@ namespace Pds {
         ret = select( _fd+1, &fds, NULL, NULL, &timeout);
         if (ret>0) {
           count += 1;
-          ::read(_fd, pgpRxBuff, pgpRxSize);
+          read_ret = ::read(_fd, pgpRxBuff, pgpRxSize);
+          if (read_ret > 0) {
+            count += 1;
+          } else {
+            perror("\tflushInputQueue: error on read from device: ");
+          }
         }
       } while ((ret > 0) && (count < 100));
       if (count && printFlag) {
@@ -482,8 +491,8 @@ namespace Pds {
                   count, pgpCardRx.pgpLane, pgpCardRx.pgpVc, pgpCardRx.rxSize,
                   pgpCardRx.eofe ? "true" : "false", pgpCardRx.lengthErr ? "true" : "false");
             printf("\t\t");
-            for (unsigned i=0; i<pgpCardRx.rxSize; i++)
-                printf("0x%08x ", _dummy[i]);
+            //for (unsigned i=0; i<pgpCardRx.rxSize; i++)
+            //    printf("0x%08x ", _dummy[i]);
             printf("\n");
           }
       }
