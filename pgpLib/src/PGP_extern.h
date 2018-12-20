@@ -44,11 +44,16 @@ extern "C" {
     unsigned PGP_register_write(void *token, int lane, int vc, unsigned addr, unsigned value);
     unsigned PGP_register_read(void *token, int lane, int vc, unsigned addr, unsigned *value);
     unsigned PGP_write_data(void *token, int lane, int vc, unsigned value);
+    unsigned PGP_write_data_bulk(void *token, int lane, int vc, unsigned* data, unsigned size);
     void PGP_pause(void *token);  // For debugging!
 
+    // One-off register read function.
+    void PGP_readreg(int mask, int vcm, int g3, unsigned int addr, unsigned int* value);
     // One-off register write function.
     void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int value);
     void PGP_writereg_bulk(int mask, int vcm, int g3, pgp_reg_data* reg_data, unsigned int size);
+    // One-off data write function.
+    void PGP_writedata(int mask, int vcm, int g3, unsigned int* data, unsigned int size);
     // Configure the on board evr (Note only configures run trigger and doesn't support accept triggers)
     void PGP_configure_evr(int mask, int g3, unsigned int enable, unsigned int runCode, unsigned int runDelay);
 };

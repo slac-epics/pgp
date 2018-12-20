@@ -13,7 +13,6 @@
 #include <fcntl.h>
 #include "pds/pgp/PgpRSBits.hh"
 #include "pds/pgp/Destination.hh"
-#include "pds/pgp/Pgp.hh"
 #include "pgpcard/PgpCardMod.h"
 
 namespace Pds {

@@ -21,10 +21,11 @@ namespace Pds {
       unsigned ports = (f >> 4) & 0xf;
       char devName[128];
       char err[128];
-      _G3 = G3;
-      if (ports == 0 && !G3)
+      _G3 = G3 & 1;
+      _srpV3 = (G3>>1) & 1;
+      if (ports == 0 && !_G3)
         ports = 15;
-      sprintf(devName, "/dev/pgpcard%s_%u_%u", G3 ? "G3" : "", f & 0xf, ports);
+      sprintf(devName, "/dev/pgpcard%s_%u_%u", _G3 ? "G3" : "", f & 0xf, ports);
       if ( access( devName, F_OK ) != -1 ) {
         _useAesDriver = false;
       } else {
@@ -36,6 +37,10 @@ namespace Pds {
           throw "Can't determine pgpcard driver type";
         }
       }
+      if (_srpV3 && !_G3) {
+        printf("Pgp::Pgp() can't use SrpV3 with a non-G3 card!\n");
+        throw "Can't use SrpV3 with a non-G3 card";
+      }
       printf("Opening %s\n", devName);
       _fd = open( devName,  O_RDWR | O_NONBLOCK);
       if (_fd < 0) {
@@ -43,7 +48,7 @@ namespace Pds {
         perror(err);
         throw "Can't open file";
       }
-      if (G3 || _useAesDriver) {
+      if (_G3 || _useAesDriver) {
         _portOffset = ports - 1;
       } else {
         _portOffset = 0;
@@ -68,9 +73,15 @@ namespace Pds {
       // End MCB changes.
       if (pf) printf("Pgp::Pgp(fd(%d)), offset(%u)\n", _fd, _portOffset);
       for (int i=0; i<BufferWords; i++) _readBuffer[i] = i;
+      if (_srpV3) {
+        _proto = new SrpV3::Protocol(_fd, _portOffset);
+      } else {
+        _proto = 0;
+      }
     }
 
     Pgp::~Pgp() {
+      if (_proto) delete _proto;
       close(_fd);
     }
 
@@ -326,6 +337,11 @@ namespace Pds {
         tx.data   = (uint64_t)&data;
         tx.flags  = 0;
         tx.index  = 0;
+        if (printFlag) printf("Pgp::write of value %u to lane(%u), vc(%u)\n",
+                              data,
+                              (dest->lane() & (_G3 ? 7: 3)) + portOffset(),
+                              dest->vc() & 3);
+        write(_fd, &tx, sizeof(tx));
       } else {
         PgpCardTx           tx;
         tx.model = sizeof(&tx);
@@ -341,6 +357,45 @@ namespace Pds {
       return Success;
     }
 
+    unsigned Pgp::writeDataBlock(Destination* dest, uint32_t* data, unsigned size, bool printFlag) {
+      if (_useAesDriver) {
+        DmaWriteData  tx;
+        tx.is32   = sizeof(&tx) == 4;
+        tx.dest   = (dest->vc() & 3) | (((dest->lane() & (_G3 ? 7: 3)) + portOffset())<<2);
+        tx.size   = sizeof(uint32_t) * size;
+        tx.data   = (uint64_t)data;
+        tx.flags  = 0;
+        tx.index  = 0;
+        if (printFlag) {
+          printf("Pgp::write of data to lane(%u), vc(%u):",
+                 (dest->lane() & (_G3 ? 7: 3)) + portOffset(),
+                 dest->vc() & 3);
+          for(unsigned i=0; i<size; i++) {
+            printf(" %u", data[i]);
+          }
+          printf("\n");
+        }
+        write(_fd, &tx, sizeof(tx));
+      } else {
+        PgpCardTx           tx;
+        tx.model = sizeof(&tx);
+        tx.cmd   = IOCTL_Normal_Write;
+        tx.pgpLane = (dest->lane() & (_G3 ? 7 : 3)) + portOffset();
+        tx.pgpVc = dest->vc() & 3;
+        tx.size = size;
+        tx.data = data;
+        if (printFlag) {
+          printf("Pgp::write of data to lane(%u), vc(%u):", tx.pgpLane, tx.pgpVc);
+          for(unsigned i=0; i<size; i++) {
+            printf(" %u", data[i]);
+          }
+          printf("\n");
+        }
+        write(_fd, &tx, sizeof(tx));
+      }
+      return Success;
+    }
+
     unsigned Pgp::lastWriteData(Destination* dest, uint32_t* retp) {
       *retp = _directWrites[dest->vc() & 3];
       return Success;
@@ -352,6 +407,9 @@ namespace Pds {
         uint32_t data,
         bool printFlag,
         Pds::Pgp::PgpRSBits::waitState w) {
+      if (_srpV3) {
+        return _proto->writeRegister(dest, addr, data);
+      }
       Pds::Pgp::RegisterSlaveExportFrame rsef = Pds::Pgp::RegisterSlaveExportFrame(
           this,
           Pds::Pgp::PgpRSBits::write,
@@ -371,6 +429,13 @@ namespace Pds {
         unsigned inSize,  // the size of the block to be exported
         Pds::Pgp::PgpRSBits::waitState w,
         bool pf) {
+      if (_srpV3) {
+        unsigned ret = 0;
+        for (unsigned i=0; i<inSize; i++) {
+          ret |= _proto->writeRegister(dest, addr + (i*sizeof(uint32_t)), data[i]);
+        }
+        return ret;
+      }
       // the size of the export block plus the size of block to be exported minus the one that's already counted
       unsigned size = (sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t)) +  inSize -1;
       uint32_t myArray[size];
@@ -396,6 +461,9 @@ namespace Pds {
         uint32_t* retp,
         unsigned size,
         bool pf) {
+      if (_srpV3) {
+        return _proto->readRegister(dest, addr, tid, retp);
+      }
       Pds::Pgp::RegisterSlaveImportFrame* rsif;
       Pds::Pgp::RegisterSlaveExportFrame  rsef = Pds::Pgp::RegisterSlaveExportFrame(
         this,

@@ -11,6 +11,7 @@
 #include "pds/pgp/PgpRSBits.hh"
 #include "pds/pgp/RegisterSlaveImportFrame.hh"
 #include "pds/pgp/RegisterSlaveExportFrame.hh"
+#include "pds/pgp/SrpV3.hh"
 #include "pds/pgp/Destination.hh"
 #include "pgpcard/PgpCardMod.h"
 #include "pgpcard/PgpDriver.h"
@@ -33,6 +34,11 @@ namespace Pds {
         unsigned       writeData(
                           Destination*,
                           uint32_t,
+                          bool pf=false);
+        unsigned       writeDataBlock(
+                          Destination*,
+                          uint32_t*,
+                          unsigned size,
                           bool pf=false);
         unsigned       writeRegister(
                           Destination*,
@@ -72,17 +78,20 @@ namespace Pds {
         unsigned      portOffset()           { return _portOffset; }
         int           fd()                   { return _fd; }
         int           G3()                   { return _G3; }
+        int           SrpV3()                { return _srpV3; }
         bool          usingAesDriver()       { return _useAesDriver; }
 
       private:
-        int        _fd;
-        int        _G3;
-        unsigned   _readBuffer[BufferWords];
-        unsigned   _dummyBuffer[DummyWords];
-        unsigned   _portOffset;
-        unsigned   _directWrites[4];
-        bool       _useAesDriver;
-        unsigned*  _dummy;
+        int               _fd;
+        int               _G3;
+        int               _srpV3;
+        unsigned          _readBuffer[BufferWords];
+        unsigned          _dummyBuffer[DummyWords];
+        unsigned          _portOffset;
+        unsigned          _directWrites[4];
+        bool              _useAesDriver;
+        unsigned*         _dummy;
+        SrpV3::Protocol*  _proto;
     };
   }
 }

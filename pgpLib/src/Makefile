@@ -25,6 +25,7 @@ HTMLS_DIR	= .
 # Note: No lib will be built if no sources are listed here
 LIBSRCS += drvPGP.cpp
 LIBSRCS += Pgp.cc
+LIBSRCS += SrpV3.cc
 LIBSRCS += RegisterSlaveExportFrame.cc 
 LIBSRCS += RegisterSlaveImportFrame.cc
 

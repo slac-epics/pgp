@@ -417,6 +417,19 @@ unsigned PGP_write_data(void *pgp_token, int lane, int vc, unsigned val)
     return pgp->pgp->writeData(&d, val, PGP_reg_debug);
 }
 
+unsigned PGP_write_data_bulk(void *pgp_token, int lane, int vc, unsigned* data, unsigned size)
+{
+    PGPCARD *pgp = (PGPCARD *)pgp_token;
+    Destination d((lane << 2) | (vc & 3));
+
+    printf("Writing");
+    for (unsigned i=0; i<size; i++) {
+      printf(" 0x%x", data[i]);
+    }
+    printf(" to vc %d\n", vc);
+    return pgp->pgp->writeDataBlock(&d, data, size, PGP_reg_debug);
+}
+
 void PGP_pause(void *pgp_token)
 {
     PGPCARD *pgp = (PGPCARD *)pgp_token;
@@ -429,6 +442,24 @@ static int bit[16] = {
     -1,  0,  1, -1,  2, -1, -1, -1,
      3, -1, -1, -1, -1, -1, -1, -1,
 };
+
+void PGP_readreg(int mask, int vcm, int g3, unsigned int addr, unsigned int* value)
+{
+    if (bit[vcm] < 0) {
+        printf("PGP_writereg: illegal vcm = %x\n", vcm);
+        return;
+    }
+    Destination d(bit[vcm]); // Lane is always zero! */
+    Pgp *pgp = NULL;
+    try {
+        pgp = new Pgp(mask, vcm, g3);
+        pgp->readRegister(&d, addr, 0x4200, value, 1, PGP_reg_debug);
+        delete pgp;
+    }
+    catch(char const *s) {
+        printf("PGP_readreg: %s\n", s);
+    }
+}
 
 void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int value)
 {
@@ -467,6 +498,24 @@ void PGP_writereg_bulk(int mask, int vcm, int g3, pgp_reg_data* reg_data, unsign
     catch(char const *s) {
         printf("PGP_writereg: %s\n", s);
     }
+}
+
+void PGP_writedata(int mask, int vcm, int g3, unsigned int* data, unsigned int size)
+{
+  if (bit[vcm] < 0) {
+    printf("PGP_writereg: illegal vcm = %x\n", vcm);
+    return;
+  }
+  Destination d(bit[vcm]); // Lane is always zero! */
+  Pgp *pgp = NULL;
+  try {
+    pgp = new Pgp(mask, vcm, g3);
+    pgp->writeDataBlock(&d, data, size, PGP_reg_debug);
+    delete pgp;
+  }
+  catch(char const *s) {
+      printf("PGP_writedata: %s\n", s);
+  }
 }
 
 void PGP_configure_evr(int mask, int g3, unsigned int enable, unsigned int runCode, unsigned int runDelay)
