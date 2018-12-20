@@ -48,6 +48,10 @@ namespace Pds {
                                     unsigned     addr,
                                     unsigned     tid,
                                     uint32_t*    retp);
+        unsigned      writeRegisterBlock( Destination* dest,
+                                          unsigned     addr,
+                                          uint32_t*    val,
+                                          unsigned     size);
         RegisterSlaveImportFrame*  read(unsigned size);
       public:
         int       fd  () const { return _fd; }

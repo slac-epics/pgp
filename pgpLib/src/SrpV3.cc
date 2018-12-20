@@ -252,4 +252,51 @@ unsigned Protocol::readRegister(Destination* dest,
   }
 }
 
+unsigned Protocol::writeRegisterBlock(Destination* dest,
+                                      unsigned     addr,
+                                      uint32_t*    data,
+                                      unsigned     size) {
+#ifdef DBUG
+  printf("SrpV3::writeRegister dest_lane[%x] addr[%x] fd[%u] proto_lane[%u] this[%p]\n",
+         dest->lane(), addr, _fd, _lane, this);
+#endif
 
+  unsigned tid = 0x6970;
+  SrpV3::RegisterSlaveFrame* hdr =
+    new (_writeBuffer) SrpV3::RegisterSlaveFrame(PgpRSBits::write,
+                                                 dest,
+                                                 addr,
+                                                 tid,
+                                                 size);
+  memcpy(hdr+1, data, size*sizeof(uint32_t));
+
+  // post
+  // Wait for write ready
+  struct timeval  timeout;
+  timeout.tv_sec=0;
+  timeout.tv_usec=100000;
+  fd_set          fds;
+  FD_ZERO(&fds);
+  FD_SET(_fd,&fds);
+
+  struct DmaWriteData  pgpCardTx;
+  pgpCardTx.is32   = (sizeof(&pgpCardTx) == 4);
+  pgpCardTx.flags  = 0;
+  pgpCardTx.dest   = dest->vc() | ((dest->lane() + _lane)<<2);
+  pgpCardTx.index  = 0;
+  pgpCardTx.size   = sizeof(*hdr) + size*sizeof(uint32_t);
+  pgpCardTx.data   = (__u64)hdr;
+
+  int ret;
+  if ((ret = select( _fd+1, NULL, &fds, NULL, &timeout)) <= 0) {
+    printf("SrpV3::writeRegister select: fd[%u]\n", _fd);
+    if (ret < 0) {
+      perror("SrpV3 post select error: ");
+    } else {
+      printf("SrpV3 post select timed out\n");
+    }
+    return Failure;
+  }
+  ::write(_fd, &pgpCardTx, sizeof(pgpCardTx));
+  return Success;
+}

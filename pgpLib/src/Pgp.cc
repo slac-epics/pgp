@@ -430,11 +430,7 @@ namespace Pds {
         Pds::Pgp::PgpRSBits::waitState w,
         bool pf) {
       if (_srpV3) {
-        unsigned ret = 0;
-        for (unsigned i=0; i<inSize; i++) {
-          ret |= _proto->writeRegister(dest, addr + (i*sizeof(uint32_t)), data[i]);
-        }
-        return ret;
+        return _proto->writeRegisterBlock(dest, addr, data, inSize);
       }
       // the size of the export block plus the size of block to be exported minus the one that's already counted
       unsigned size = (sizeof(Pds::Pgp::RegisterSlaveExportFrame)/sizeof(uint32_t)) +  inSize -1;
