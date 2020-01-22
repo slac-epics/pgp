@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <new>
+#include <sys/ioctl.h>
 
 namespace Pds {
 
@@ -56,13 +57,18 @@ namespace Pds {
           _portOffset += 1;
         }
       }
+      if (_useAesDriver && (dmaCheckVersion(_fd) < 0)) {
+        printf("Pgp::Pgp() DMA API Version (%d) does not match the driver (%d)!\n",
+               DMA_VERSION, ioctl(_fd, DMA_Get_Version));
+        throw "DMA API Version mismatch";
+      }
       if (vcm) {
         if (_useAesDriver) {
-          unsigned char maskBytes[32];
+          unsigned char maskBytes[DMA_MASK_SIZE];
           dmaInitMaskBytes(maskBytes);
           for(unsigned i=0; i<4; i++) {
             if ((1<<i) & vcm)
-              dmaAddMaskBytes(maskBytes, (_portOffset<<2) + i);
+              pgpAddMaskBytes(maskBytes, _portOffset, i);
           }
           dmaSetMaskBytes(_fd, maskBytes);
         } else {
@@ -71,6 +77,7 @@ namespace Pds {
       }
       memset(_directWrites, 0, sizeof(_directWrites));
       // End MCB changes.
+      printf("Pgp::Pgp(fd(%d)), offset(%u) %u\n", _fd, _portOffset, vcm);
       if (pf) printf("Pgp::Pgp(fd(%d)), offset(%u)\n", _fd, _portOffset);
       for (int i=0; i<BufferWords; i++) _readBuffer[i] = i;
       if (_srpV3) {
@@ -101,6 +108,7 @@ namespace Pds {
         dmaReadData.flags  = 0;
         dmaReadData.index  = 0;
         dmaReadData.error  = 0;
+        dmaReadData.ret    = 0;
         pgpRxBuff = &dmaReadData;
         pgpRxSize = sizeof(DmaReadData);
       } else {
@@ -112,7 +120,7 @@ namespace Pds {
       }
       if ((retSize = ::read(_fd, pgpRxBuff, pgpRxSize)) >= 0) {
           if (_useAesDriver) {
-            *size = (retSize / sizeof(uint32_t));
+            *size = (dmaReadData.ret / sizeof(uint32_t));
           } else {
             *size = retSize;
           }
@@ -129,12 +137,7 @@ namespace Pds {
             ret = 0;
           } else {
               bool hardwareFailure = false;
-              uint32_t* u = (uint32_t*)ret;
-              if (_useAesDriver) {
-                u += ((retSize / sizeof(uint32_t)) - 1);
-              } else {
-                u += (retSize - 1);
-              }
+              uint32_t* u = (uint32_t*)ret + *size -1;
               if (ret->failed((Pds::Pgp::LastBits*)(u))) {
                   printf("Pgp::do_read received HW failure\n");
                   ret->print();
@@ -173,6 +176,7 @@ namespace Pds {
         dmaReadData.flags  = 0;
         dmaReadData.index  = 0;
         dmaReadData.error  = 0;
+        dmaReadData.ret    = 0;
         retSize   = size * sizeof(unsigned);
         pgpRxBuff = &dmaReadData;
         pgpRxSize = sizeof(DmaReadData);
@@ -192,6 +196,7 @@ namespace Pds {
       while (found == false) {
         if ((sret = select(_fd+1,&fds,NULL,NULL,&timeout)) > 0) {
           if ((readRet = ::read(_fd, pgpRxBuff, pgpRxSize)) >= 0) {
+            if (_useAesDriver) readRet = dmaReadData.ret;
             if ((ret->waiting() == Pds::Pgp::PgpRSBits::Waiting) || (ret->opcode() == Pds::Pgp::PgpRSBits::read)) {
               found = true;
               if (_useAesDriver ? dmaReadData.error : (pgpCardRx.eofe || pgpCardRx.fifoErr || pgpCardRx.lengthErr)) {
@@ -207,8 +212,8 @@ namespace Pds {
                 ret = 0;
               } else {
                 if (readRet != (int)retSize) {
-                  printf("Pgp::read read returned %u, we were looking for %u\n", readRet, size);
-                  ret->print(readRet);
+                  printf("Pgp::read read returned %u, we were looking for %zu\n", readRet, retSize);
+                  ret->print();
                   ret = 0;
                 } else {
                   bool hardwareFailure = false;
@@ -509,18 +514,19 @@ namespace Pds {
       DmaReadData     dmaReadData;
       if (_useAesDriver) {
         dmaReadData.is32   = sizeof(&dmaReadData) == 4;
-        dmaReadData.size   = sizeof(_dummy);
-        dmaReadData.data   = (uint64_t)_dummy;
+        dmaReadData.size   = sizeof(_dummyBuffer);
+        dmaReadData.data   = (uint64_t)_dummyBuffer;
         dmaReadData.dest   = 0;
         dmaReadData.flags  = 0;
         dmaReadData.index  = 0;
         dmaReadData.error  = 0;
+        dmaReadData.ret    = 0;
         pgpRxBuff = &dmaReadData;
         pgpRxSize = sizeof(DmaReadData);
       } else {
         pgpCardRx.model   = sizeof(&pgpCardRx);
         pgpCardRx.maxSize = DummyWords;
-        pgpCardRx.data    = _dummy;
+        pgpCardRx.data    = _dummyBuffer;
         pgpCardRx.pgpLane = 0;
         pgpCardRx.pgpVc   = 0;
         pgpCardRx.rxSize  = 0;
@@ -547,16 +553,17 @@ namespace Pds {
                    count, pgpGetLane(dmaReadData.dest), pgpGetVc(dmaReadData.dest), dmaReadData.size,
                    dmaReadData.error&DMA_ERR_FIFO ? "true" : "false", dmaReadData.error&DMA_ERR_LEN ? "true" : "false");
             printf("\t\t");
-            for (unsigned i=0; i<(dmaReadData.size/sizeof(unsigned)); i++)
-                printf("0x%08x ", _dummy[i]);
+            printf("%u\n", dmaReadData.size);
+            for (unsigned i=0; i<DummyWords; i++)
+                printf("0x%08x ", _dummyBuffer[i]);
             printf("\n");
           } else {
             printf("\tflushInputQueue: pgpCardRx count(%u) lane(%u) vc(%u) rxSize(%u) eofe(%s) lengthErr(%s)\n",
                   count, pgpCardRx.pgpLane, pgpCardRx.pgpVc, pgpCardRx.rxSize,
                   pgpCardRx.eofe ? "true" : "false", pgpCardRx.lengthErr ? "true" : "false");
             printf("\t\t");
-            //for (unsigned i=0; i<pgpCardRx.rxSize; i++)
-            //    printf("0x%08x ", _dummy[i]);
+            for (unsigned i=0; i<DummyWords; i++)
+                printf("0x%08x ", _dummyBuffer[i]);
             printf("\n");
           }
       }

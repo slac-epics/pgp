@@ -61,7 +61,7 @@ namespace Pds {
         dmaWriteData.data   = (__u64)this;
 
         pgpTxBuff = &dmaWriteData;
-        pgpTxSize = sizeof(DmaReadData);
+        pgpTxSize = sizeof(DmaWriteData);
 
         if (pf) {
           printf("RSEF::post: dest 0x%x, size 0x%x, data 0x%lx\n",

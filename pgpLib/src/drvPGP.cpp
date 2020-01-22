@@ -245,7 +245,7 @@ public:
     void enableSrc(void) {
         if (src.enfunc)
             (*src.enfunc)(1, src.dev_token);
-        pgp->flushInputQueue(true);
+        pgp->flushInputQueue(PGP_reg_debug);
         dbPutField(&src.trigenable, DBR_ENUM, &src.trigstate, sizeof(src.trigstate));
     }
     void doConfigure(void) {
