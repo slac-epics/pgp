@@ -25,7 +25,7 @@ namespace Pds {
         virtual ~Pgp();
 
       public:
-        enum {BufferWords=2048, DummyWords=256*1024};
+        enum {BufferWords=2048, DummyWords=1024*1024};
         enum {Success=0, Failure=1, SelectSleepTimeUSec=10000};
         enum {DirectWrite=0xffffffff};
         Pds::Pgp::RegisterSlaveImportFrame* do_read(unsigned *buffer, int *size);
