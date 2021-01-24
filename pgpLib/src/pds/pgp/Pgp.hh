@@ -13,7 +13,6 @@
 #include "pds/pgp/RegisterSlaveExportFrame.hh"
 #include "pds/pgp/SrpV3.hh"
 #include "pds/pgp/Destination.hh"
-#include "pgpcard/PgpCardMod.h"
 #include "pgpcard/PgpDriver.h"
 
 namespace Pds {
@@ -21,13 +20,14 @@ namespace Pds {
 
     class Pgp {
       public:
-        Pgp(int, int, int, bool printFlag = false);
+        Pgp(int mask, int vcm, bool srpV3, bool printFlag = false);
         virtual ~Pgp();
 
       public:
         enum {BufferWords=2048, DummyWords=1024*1024};
         enum {Success=0, Failure=1, SelectSleepTimeUSec=10000};
         enum {DirectWrite=0xffffffff};
+        enum CardType {G2, G3, DataDev, Unknown};
         Pds::Pgp::RegisterSlaveImportFrame* do_read(unsigned *buffer, int *size);
         Pds::Pgp::RegisterSlaveImportFrame* read(
                           unsigned size = (sizeof(Pds::Pgp::RegisterSlaveImportFrame)/sizeof(uint32_t)));
@@ -69,27 +69,26 @@ namespace Pds {
                           uint32_t runDelay,
                           bool printFlag=false);
         unsigned      readStatus( void * );
-        unsigned      stopPolling();
         unsigned      flushInputQueue(bool printFlag=false);
         unsigned      lastWriteData(Destination*, uint32_t*);
-        int      IoctlCommand(unsigned command, unsigned arg = 0);
 
         void          portOffset(unsigned p) { _portOffset = p;    }
-        unsigned      portOffset()           { return _portOffset; }
-        int           fd()                   { return _fd; }
-        int           G3()                   { return _G3; }
-        int           SrpV3()                { return _srpV3; }
-        bool          usingAesDriver()       { return _useAesDriver; }
+        unsigned      portOffset() const     { return _portOffset; }
+        int           fd() const             { return _fd; }
+        bool          useSrpV3() const       { return _srpV3; }
+        bool          isG3() const           { return _type == G3; }
+        CardType      type() const           { return _type; }
+        bool          usesPgpDriver() const  { return _type == G2 || _type == G3; }
+        bool          usesDataDriver() const { return _type == DataDev; }
 
       private:
         int               _fd;
-        int               _G3;
-        int               _srpV3;
+        bool              _srpV3;
+        CardType          _type;
         unsigned          _readBuffer[BufferWords];
         unsigned          _dummyBuffer[DummyWords];
         unsigned          _portOffset;
         unsigned          _directWrites[4];
-        bool              _useAesDriver;
         unsigned*         _dummy;
         SrpV3::Protocol*  _proto;
     };

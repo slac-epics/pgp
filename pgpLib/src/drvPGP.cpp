@@ -79,78 +79,51 @@ public:
         cfgstate = CfgIdle;
         name = epicsStrDup(_name);
         pgp = new Pgp(_lane, _vcm, _G3);
-        if (_G3) {
-            if (pgp->usingAesDriver()) {
-              PgpStatus status[8];
+        switch (pgp->type()) {
+        case Pgp::G3:
+          {
+            PgpStatus status[8];
 
-              pgp->readStatus(&status[0]);
-              printf("Checking link status of %s:\n", name);
-              printf("    Local: ");
-              for (int i=0; i<8; i++) {
-                printf(" %2d", status[i].locLinkReady);
-              }
-              printf("\n");
-              printf("    Remote:");
-              for (int i=0; i<8; i++) {
-                printf(" %2d", status[i].remLinkReady);
-              }
-              printf("\n");
-            } else {
-              PgpCardG3Status status;
-
-              pgp->readStatus(&status);
-              printf("Checking link status of %s:\n", name);
-              printf("    Local:  %2d %2d %2d %2d %2d %2d %2d %2d\n", 
-                     status.PgpLocLinkReady[0],
-                     status.PgpLocLinkReady[1],
-                     status.PgpLocLinkReady[2],
-                     status.PgpLocLinkReady[3],
-                     status.PgpLocLinkReady[4],
-                     status.PgpLocLinkReady[5],
-                     status.PgpLocLinkReady[6],
-                     status.PgpLocLinkReady[7]);
-              printf("    Remote: %2d %2d %2d %2d %2d %2d %2d %2d\n", 
-                     status.PgpRemLinkReady[0],
-                     status.PgpRemLinkReady[1],
-                     status.PgpRemLinkReady[2],
-                     status.PgpRemLinkReady[3],
-                     status.PgpRemLinkReady[4],
-                     status.PgpRemLinkReady[5],
-                     status.PgpRemLinkReady[6],
-                     status.PgpRemLinkReady[7]);
+            pgp->readStatus(&status[0]);
+            printf("Checking link status of %s:\n", name);
+            printf("    Local: ");
+            for (int i=0; i<8; i++) {
+              printf(" %2d", status[i].locLinkReady);
             }
-        } else {
-            if (pgp->usingAesDriver()) {
-              PgpStatus status[8];
-
-              pgp->readStatus(&status[0]);
-              printf("Checking link status of %s:\n", name);
-              printf("    Local: ");
-              for (int i=0; i<4; i++) {
-                printf(" %2d", status[i].locLinkReady);
-              }
-              printf("\n");
-              printf("    Remote:");
-              for (int i=0; i<4; i++) {
-                printf(" %2d", status[i].remLinkReady);
-              }
-              printf("\n");
-            } else {
-              PgpCardStatus status;
-
-              pgp->readStatus(&status);
-              printf("Checking link status of %s:\n", name);
-              printf("    Local:  %2d %2d %2d %2d\n", 
-                     status.PgpLink[0].PgpLocLinkReady,
-                     status.PgpLink[1].PgpLocLinkReady,
-                     status.PgpLink[2].PgpLocLinkReady,
-                     status.PgpLink[3].PgpLocLinkReady);
-              printf("    Remote: %2d %2d %2d %2d\n", 
-                     status.PgpLink[0].PgpRemLinkReady,
-                     status.PgpLink[1].PgpRemLinkReady,
-                     status.PgpLink[2].PgpRemLinkReady,
-                    status.PgpLink[3].PgpRemLinkReady);
+            printf("\n");
+            printf("    Remote:");
+            for (int i=0; i<8; i++) {
+              printf(" %2d", status[i].remLinkReady);
             }
+            printf("\n");
+          }
+          break;
+        case Pgp::G2:
+          {
+            PgpStatus status[8];
+
+            pgp->readStatus(&status[0]);
+            printf("Checking link status of %s:\n", name);
+            printf("    Local: ");
+            for (int i=0; i<4; i++) {
+              printf(" %2d", status[i].locLinkReady);
+            }
+            printf("\n");
+            printf("    Remote:");
+            for (int i=0; i<4; i++) {
+              printf(" %2d", status[i].remLinkReady);
+            }
+            printf("\n");
+          }
+          break;
+        case Pgp::DataDev:
+          {
+            // to do
+          }
+          break;
+        default:
+          printf("Checking the link status of cards of type %d is unsupported!",
+                 pgp->type());
         }
         if (pipe(cfgpipe) == -1) {
             printf("pipe creation failed!\n");
@@ -443,7 +416,7 @@ static int bit[16] = {
      3, -1, -1, -1, -1, -1, -1, -1,
 };
 
-void PGP_readreg(int mask, int vcm, int g3, unsigned int addr, unsigned int* value)
+void PGP_readreg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int* value)
 {
     if (bit[vcm] < 0) {
         printf("PGP_writereg: illegal vcm = %x\n", vcm);
@@ -452,7 +425,7 @@ void PGP_readreg(int mask, int vcm, int g3, unsigned int addr, unsigned int* val
     Destination d(bit[vcm]); // Lane is always zero! */
     Pgp *pgp = NULL;
     try {
-        pgp = new Pgp(mask, vcm, g3);
+        pgp = new Pgp(mask, vcm, srpV3);
         pgp->readRegister(&d, addr, 0x4200, value, 1, PGP_reg_debug);
         delete pgp;
     }
@@ -461,7 +434,7 @@ void PGP_readreg(int mask, int vcm, int g3, unsigned int addr, unsigned int* val
     }
 }
 
-void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int value)
+void PGP_writereg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int value)
 {
     if (bit[vcm] < 0) {
         printf("PGP_writereg: illegal vcm = %x\n", vcm);
@@ -470,7 +443,7 @@ void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int val
     Destination d(bit[vcm]); // Lane is always zero! */
     Pgp *pgp = NULL;
     try {
-        pgp = new Pgp(mask, vcm, g3);
+        pgp = new Pgp(mask, vcm, srpV3);
         pgp->writeRegister(&d, addr, value, PGP_reg_debug, PgpRSBits::notWaiting);
         delete pgp;
     }
@@ -479,7 +452,7 @@ void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int val
     }
 }
 
-void PGP_writereg_bulk(int mask, int vcm, int g3, pgp_reg_data* reg_data, unsigned int size)
+void PGP_writereg_bulk(int mask, int vcm, int srpV3, pgp_reg_data* reg_data, unsigned int size)
 {
     if (bit[vcm] < 0) {
         printf("PGP_writereg: illegal vcm = %x\n", vcm);
@@ -489,7 +462,7 @@ void PGP_writereg_bulk(int mask, int vcm, int g3, pgp_reg_data* reg_data, unsign
     Pgp *pgp = NULL;
     unsigned int i;
     try {
-        pgp = new Pgp(mask, vcm, g3);
+        pgp = new Pgp(mask, vcm, srpV3);
         for (i=0; i<size; i++) {
           pgp->writeRegister(&d, reg_data[i].addr, reg_data[i].value, PGP_reg_debug, PgpRSBits::notWaiting);
         }
@@ -500,7 +473,7 @@ void PGP_writereg_bulk(int mask, int vcm, int g3, pgp_reg_data* reg_data, unsign
     }
 }
 
-void PGP_writedata(int mask, int vcm, int g3, unsigned int* data, unsigned int size)
+void PGP_writedata(int mask, int vcm, unsigned int* data, unsigned int size)
 {
   if (bit[vcm] < 0) {
     printf("PGP_writereg: illegal vcm = %x\n", vcm);
@@ -509,7 +482,7 @@ void PGP_writedata(int mask, int vcm, int g3, unsigned int* data, unsigned int s
   Destination d(bit[vcm]); // Lane is always zero! */
   Pgp *pgp = NULL;
   try {
-    pgp = new Pgp(mask, vcm, g3);
+    pgp = new Pgp(mask, vcm, false);
     pgp->writeDataBlock(&d, data, size, PGP_reg_debug);
     delete pgp;
   }
@@ -518,11 +491,26 @@ void PGP_writedata(int mask, int vcm, int g3, unsigned int* data, unsigned int s
   }
 }
 
-void PGP_configure_evr(int mask, int g3, unsigned int enable, unsigned int runCode, unsigned int runDelay)
+int PGP_has_evr(int mask)
+{
+  int is_g3 = 0;
+  Pgp *pgp = NULL;
+  try {
+    pgp = new Pgp(mask, 0, false);
+    is_g3 = pgp->isG3();
+    delete pgp;
+  }
+  catch(char const *s) {
+    printf("PGP_has_evr: %s\n", s);
+  }
+  return is_g3;
+}
+
+void PGP_configure_evr(int mask, unsigned int enable, unsigned int runCode, unsigned int runDelay)
 {
     Pgp *pgp = NULL;
     try {
-        pgp = new Pgp(mask, 0, g3);
+        pgp = new Pgp(mask, 0, false);
         pgp->enableRunTrigger(enable, runCode, runDelay, PGP_reg_debug);
         delete pgp;
     }
@@ -552,7 +540,7 @@ epicsStatus PgpInit (void)
     return 0;
 }
 
-void PgpRegister(char *name, int lane, int vcm, int G3)
+void PgpRegister(char *name, int lane, int vcm, int srpV3)
 {
     PGPCARD  *pdevice = NULL;
 
@@ -562,7 +550,7 @@ void PgpRegister(char *name, int lane, int vcm, int G3)
         epicsThreadSuspendSelf();
     }
 
-    pdevice = new PGPCARD(name, lane, vcm, G3);
+    pdevice = new PGPCARD(name, lane, vcm, srpV3);
 
     epicsMutexLock(PGPlock);
     ellAdd(&PGPCards, (ELLNODE *)pdevice);
@@ -776,7 +764,7 @@ epicsExportAddress(dset, devPGPwave);
 static const iocshArg PgpRegisterArg0 = {"name"   ,    iocshArgString};
 static const iocshArg PgpRegisterArg1 = {"lane"   ,    iocshArgInt};
 static const iocshArg PgpRegisterArg2 = {"vcm"    ,    iocshArgInt};
-static const iocshArg PgpRegisterArg3 = {"G3"     ,    iocshArgInt};
+static const iocshArg PgpRegisterArg3 = {"srpV3"  ,    iocshArgInt};
 static const iocshArg *const PgpRegisterArgs[4] = {
     &PgpRegisterArg0,
     &PgpRegisterArg1,

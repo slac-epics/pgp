@@ -48,12 +48,14 @@ extern "C" {
     void PGP_pause(void *token);  // For debugging!
 
     // One-off register read function.
-    void PGP_readreg(int mask, int vcm, int g3, unsigned int addr, unsigned int* value);
+    void PGP_readreg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int* value);
     // One-off register write function.
-    void PGP_writereg(int mask, int vcm, int g3, unsigned int addr, unsigned int value);
-    void PGP_writereg_bulk(int mask, int vcm, int g3, pgp_reg_data* reg_data, unsigned int size);
+    void PGP_writereg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int value);
+    void PGP_writereg_bulk(int mask, int vcm, int srpV3, pgp_reg_data* reg_data, unsigned int size);
     // One-off data write function.
-    void PGP_writedata(int mask, int vcm, int g3, unsigned int* data, unsigned int size);
+    void PGP_writedata(int mask, int vcm, unsigned int* data, unsigned int size);
+    // Query if card has an on board LCLS-I SLAC evr (a.k.a. a G3 card)
+    int PGP_has_evr(int mask);
     // Configure the on board evr (Note only configures run trigger and doesn't support accept triggers)
-    void PGP_configure_evr(int mask, int g3, unsigned int enable, unsigned int runCode, unsigned int runDelay);
+    void PGP_configure_evr(int mask, unsigned int enable, unsigned int runCode, unsigned int runDelay);
 };
