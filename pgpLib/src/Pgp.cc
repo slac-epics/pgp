@@ -23,7 +23,8 @@ namespace Pds {
       _srpV3(srpV3),
       _type(Unknown),
       _portOffset(((mask >> 4) & 0xf) - 1),
-      _proto(new SrpV3::Protocol(_fd, _portOffset))
+      _proto(NULL),
+      _kcu(NULL)
     {
       char devName[128];
       char err[128];
@@ -56,6 +57,10 @@ namespace Pds {
           _type=G3;
         }
       }
+      // Set up kcu/pgp4 registers object if using datadev driver
+      if (usesDataDriver()) {
+        _kcu = new Kcu1500Regs(_fd);
+      }
       if (dmaCheckVersion(_fd) < 0) {
         printf("Pgp::Pgp() DMA API Version (%d) does not match the driver (%d)!\n",
                DMA_VERSION, ioctl(_fd, DMA_Get_Version));
@@ -83,6 +88,7 @@ namespace Pds {
 
     Pgp::~Pgp() {
       if (_proto) delete _proto;
+      if (_kcu) delete _kcu;
       close(_fd);
     }
 
@@ -232,6 +238,29 @@ namespace Pds {
         PgpStatus* status = (PgpStatus*) s;
         for (int lane = 0; lane < (isG3() ? 8 : 4); lane++) {
           pgpGetStatus(_fd,lane,&status[lane]);
+        }
+        return Success;
+      } else if(usesDataDriver()) {
+        PgpStatus* status = (PgpStatus*) s;
+        PgpMon kcustat;
+        for (uint32_t lane=0; lane<_kcu->nlanes(); lane++) {
+          if (_kcu->getPgpMon(lane, &kcustat) < 0) {
+            return Failure;
+          } else {
+            status[lane].lane = 0;
+            status[lane].loopBack = kcustat.Loopback;
+            status[lane].locLinkReady = kcustat.RxLocalLinkReady;
+            status[lane].remLinkReady = kcustat.RxRemLinkReady;
+            status[lane].rxReady = kcustat.RxPhyActive;
+            status[lane].txReady = kcustat.TxPhyActive;
+            status[lane].rxCount = kcustat.RxFrameCount;
+            status[lane].cellErrCnt = kcustat.RxCellErrorCount;
+            status[lane].linkDownCnt = kcustat.RxLinkDownCount;
+            status[lane].linkErrCnt = kcustat.RxLinkErrorCount;
+            status[lane].fifoErr = 0;
+            status[lane].remData = 0;
+            status[lane].remBuffStatus = 0;
+          }
         }
         return Success;
       } else {

@@ -75,10 +75,10 @@ public:
     int cfgerrs;
     struct srchandler src;
 
-    PGPCARD(char *_name, int _lane, int _vcm, int _G3) {
+    PGPCARD(char *_name, int _lane, int _vcm, int _srpV3) {
         cfgstate = CfgIdle;
         name = epicsStrDup(_name);
-        pgp = new Pgp(_lane, _vcm, _G3);
+        pgp = new Pgp(_lane, _vcm, _srpV3);
         switch (pgp->type()) {
         case Pgp::G3:
           {
@@ -118,7 +118,20 @@ public:
           break;
         case Pgp::DataDev:
           {
-            // to do
+            PgpStatus status[8];
+
+            pgp->readStatus(&status[0]);
+            printf("Checking link status of %s:\n", name);
+            printf("    Local: ");
+            for (int i=0; i<4; i++) {
+              printf(" %2d", status[i].locLinkReady);
+            }
+            printf("\n");
+            printf("    Remote:");
+            for (int i=0; i<4; i++) {
+              printf(" %2d", status[i].remLinkReady);
+            }
+            printf("\n");
           }
           break;
         default:

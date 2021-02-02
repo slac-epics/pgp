@@ -26,6 +26,7 @@ HTMLS_DIR	= .
 LIBSRCS += drvPGP.cpp
 LIBSRCS += Pgp.cc
 LIBSRCS += SrpV3.cc
+LIBSRCS += Kcu1500Regs.cpp
 LIBSRCS += RegisterSlaveExportFrame.cc 
 LIBSRCS += RegisterSlaveImportFrame.cc
 

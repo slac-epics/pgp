@@ -13,6 +13,7 @@
 #include "pds/pgp/RegisterSlaveExportFrame.hh"
 #include "pds/pgp/SrpV3.hh"
 #include "pds/pgp/Destination.hh"
+#include "pds/pgp/Kcu1500Regs.hh"
 #include "pgpcard/PgpDriver.h"
 
 namespace Pds {
@@ -91,6 +92,7 @@ namespace Pds {
         unsigned          _directWrites[4];
         unsigned*         _dummy;
         SrpV3::Protocol*  _proto;
+        Kcu1500Regs*      _kcu;
     };
   }
 }
