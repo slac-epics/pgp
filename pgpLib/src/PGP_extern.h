@@ -24,6 +24,12 @@ extern "C" {
     enum PGP_rcvfunc_op { PGP_Alloc, PGP_Free, PGP_Receive };
     typedef pgp_data *(*PGP_rcvfunc)(enum PGP_rcvfunc_op, void *);
 
+    typedef struct pgp_reg_rdata_struct {
+        unsigned int addr;
+        unsigned int size;
+        unsigned int *value;
+    } pgp_reg_rdata;
+
     typedef struct pgp_reg_data_struct {
         unsigned int addr;
         unsigned int value;
@@ -49,6 +55,7 @@ extern "C" {
 
     // One-off register read function.
     void PGP_readreg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int* value);
+    void PGP_readreg_bulk(int mask, int vcm, int srpV3, pgp_reg_rdata* reg_data, unsigned int size);
     // One-off register write function.
     void PGP_writereg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int value);
     void PGP_writereg_bulk(int mask, int vcm, int srpV3, pgp_reg_data* reg_data, unsigned int size);

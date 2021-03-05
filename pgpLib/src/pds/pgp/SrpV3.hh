@@ -46,7 +46,8 @@ namespace Pds {
         unsigned      readRegister( Destination* dest,
                                     unsigned     addr,
                                     unsigned     tid,
-                                    uint32_t*    retp);
+                                    uint32_t*    retp,
+                                    unsigned     size=1);
         unsigned      writeRegisterBlock( Destination* dest,
                                           unsigned     addr,
                                           uint32_t*    val,

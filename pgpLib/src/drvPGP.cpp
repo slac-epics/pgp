@@ -447,6 +447,27 @@ void PGP_readreg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int* 
     }
 }
 
+void PGP_readreg_bulk(int mask, int vcm, int srpV3, pgp_reg_rdata* reg_data, unsigned int size)
+{
+    if (bit[vcm] < 0) {
+        printf("PGP_writereg: illegal vcm = %x\n", vcm);
+        return;
+    }
+    Destination d(bit[vcm]); // Lane is always zero! */
+    Pgp *pgp = NULL;
+    unsigned int i;
+    try {
+        pgp = new Pgp(mask, vcm, srpV3);
+        for(i=0; i<size; i++) {
+            pgp->readRegister(&d, reg_data[i].addr, 0x4200 + i, reg_data[i].value, reg_data[i].size, PGP_reg_debug);
+        }
+        delete pgp;
+    }
+    catch(char const *s) {
+        printf("PGP_readreg: %s\n", s);
+    }
+}
+
 void PGP_writereg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int value)
 {
     if (bit[vcm] < 0) {

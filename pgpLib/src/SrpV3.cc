@@ -199,13 +199,13 @@ unsigned Protocol::writeRegister(Destination* dest,
 unsigned Protocol::readRegister(Destination* dest,
                                 unsigned addr,
                                 unsigned tid,
-                                uint32_t* retp) {
+                                uint32_t* retp,
+                                unsigned size) {
 #ifdef DBUG
   printf("SrpV3::readRegister dest_lane[%u] addr[%u] fd[%u] this[%p]\n",
          dest->lane(), addr, _fd, this);
 #endif
 
-  unsigned size = 1;
   SrpV3::RegisterSlaveFrame hdr(PgpRSBits::read, dest, addr, tid, size);
   // post
   // Wait for write ready

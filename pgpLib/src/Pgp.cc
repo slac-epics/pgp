@@ -368,7 +368,7 @@ namespace Pds {
         unsigned size,
         bool pf) {
       if (_srpV3) {
-        return _proto->readRegister(dest, addr, tid, retp);
+        return _proto->readRegister(dest, addr, tid, retp, size);
       }
       Pds::Pgp::RegisterSlaveImportFrame* rsif;
       Pds::Pgp::RegisterSlaveExportFrame  rsef = Pds::Pgp::RegisterSlaveExportFrame(
