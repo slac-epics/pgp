@@ -123,8 +123,7 @@ Pds::Pgp::RegisterSlaveImportFrame* Protocol::read(unsigned size)
                 ret->bits._lane    = dest.lane();
                 ret->bits._waiting = PgpRSBits::Waiting;
                 ret->bits._tid     = rsfv.tid();
-                ret->bits._addr    = rsfv.addr()&0xffffff;
-                ret->bits.dnc      = 0;
+                ret->bits._addr    = rsfv.addr()&0x3fffffff;
                 ret->bits.oc       = rsfv.opcode();
               }
             }
@@ -243,7 +242,7 @@ unsigned Protocol::readRegister(Destination* dest,
              pgpCardTx.dest, _fd, this);
       return Failure;
     }
-    if ((addr&0xffffff) != rsif->addr()) {  // Can only test lowest 24 bits of addr
+    if ((addr&0x3fffffff) != rsif->addr()) {  // Can only test lowest 24 bits of addr
       printf("SrpV3::readRegister out of order response lane=%u, vc=%u, addr=0x%x(0x%x), tid=0x%x(0x%x), errorCount=%u\n",
              dest->lane(), dest->vc(), addr, rsif->addr(), tid, rsif->tid(), ++errorCount);
       if (errorCount > 5) return Failure;

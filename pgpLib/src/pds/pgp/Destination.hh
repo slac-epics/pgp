@@ -8,41 +8,45 @@
 #ifndef DESTINATION_HH_
 #define DESTINATION_HH_
 
+#include <string.h>
+
 namespace Pds {
 
   namespace Pgp {
 
     class Destination {
       public:
-        Destination() {};
+        Destination() { _dest = 0; };
         Destination(unsigned d) { _dest = d; };
         virtual ~Destination() {};
 
       public:
         void dest(unsigned d) { _dest = d; }
-        virtual unsigned lane() { return( (_dest>>2) & 3); }
-        virtual unsigned vc() { return _dest & 3; }
+        unsigned dest() { return _dest; }
+        virtual unsigned lane() { return( (_dest>>2) & 0x7); }
+        virtual unsigned vc() { return _dest & 0x3; }
         virtual const char*    name() {
-          static const char* _names[17] = {
-              "Lane 0, VC 0",
-              "Lane 0, VC 1",
-              "Lane 0, VC 2",
-              "Lane 0, VC 3",
-              "Lane 1, VC 0",
-              "Lane 1, VC 1",
-              "Lane 1, VC 2",
-              "Lane 1, VC 3",
-              "Lane 2, VC 0",
-              "Lane 2, VC 1",
-              "Lane 2, VC 2",
-              "Lane 2, VC 3",
-              "Lane 3, VC 0",
-              "Lane 3, VC 1",
-              "Lane 3, VC 2",
-              "Lane 3, VC 3",
-              " -- INVALID --"
+          static char _ret[80];
+          static const char* _lanes[9] = {
+              "Lane 0, ",
+              "Lane 1, ",
+              "Lane 2, ",
+              "Lane 3, ",
+              "Lane 4, ",
+              "Lane 5, ",
+              "Lane 6, ",
+              "Lane 7, ",
+              "--INVALID--"
           };
-          return (_dest < 16 ? _names[_dest] : _names[16]);
+          static const char* _vcs[5] = {
+              "VC 0",
+              "VC 1",
+              "VC 2",
+              "VC 3",
+              "--INVALID--"
+          };
+          strcpy(_ret, _lanes[lane()]);
+          return strcat(_ret, _vcs[vc()]);
         }
 
       protected:

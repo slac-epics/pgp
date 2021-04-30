@@ -21,7 +21,7 @@ namespace Pds {
     class RegisterSlaveExportFrame {
       public:
         enum {Success=0, Failure=1};
-        enum masks {addrMask=(1<<24)-1};
+        enum masks {addrMask=(1<<30)-1};
 
         RegisterSlaveExportFrame(
             Pgp *pgp,
