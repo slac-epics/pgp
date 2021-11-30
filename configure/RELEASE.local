@@ -14,8 +14,8 @@
 # ==========================================================
 # Define the version strings for all needed modules
 # ==========================================================
-IOCADMIN_MODULE_VERSION = R3.1.15-1.0.1
-AUTOSAVE_MODULE_VERSION = R5.7.1-2.0.0
+IOCADMIN_MODULE_VERSION = R3.1.16-1.1.0
+AUTOSAVE_MODULE_VERSION = R5.8-1.0.0
 EVENT2_MODULE_VERSION   = R5.5.0
 TIMESYNC_MODULE_VERSION = R2.0.1
 
