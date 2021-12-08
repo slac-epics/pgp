@@ -17,7 +17,7 @@
 IOCADMIN_MODULE_VERSION = R3.1.16-1.1.0
 AUTOSAVE_MODULE_VERSION = R5.8-1.0.0
 EVENT2_MODULE_VERSION   = R5.5.0
-TIMESYNC_MODULE_VERSION = R2.0.1
+TIMESYNC_MODULE_VERSION = R2.0.5
 
 # ==========================================================
 # External Support module path definitions
