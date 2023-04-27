@@ -54,7 +54,7 @@ static inline uint64_t getbits(uint64_t bits, uint64_t index, uint64_t num=1)
   return (bits & (((1<<num) - 1) << index)) >> index;
 }
 
-static inline ssize_t dmaReadRegister64(int32_t fd, uint32_t address, uint64_t *data)
+static inline ssize_t dmaReadRegister64(int32_t fd, uint64_t address, uint64_t *data)
 {
   int ret = 0;
   uint32_t low = 0;
