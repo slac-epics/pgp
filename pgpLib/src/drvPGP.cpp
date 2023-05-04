@@ -574,6 +574,76 @@ epicsStatus PgpInit (void)
     return 0;
 }
 
+static void PgpStatusCall(const iocshArgBuf * args)
+{
+    char *name = args[0].sval;
+    PGPCARD *pdevice = pgpFindDeviceByName(name);
+    Pgp *pgp;
+    if (!pdevice) {
+	printf("No PGP card %s!\n", name);
+	return;
+    }
+    pgp = pdevice->pgp;
+    switch (pgp->type()) {
+    case Pgp::G3:
+	{
+	    PgpStatus status[8];
+	    
+	    pgp->readStatus(&status[0]);
+	    printf("Checking link status of %s:\n", name);
+	    printf("    Local: ");
+	    for (int i=0; i<8; i++) {
+		printf(" %2d", status[i].locLinkReady);
+	    }
+	    printf("\n");
+	    printf("    Remote:");
+	    for (int i=0; i<8; i++) {
+		printf(" %2d", status[i].remLinkReady);
+	    }
+	    printf("\n");
+	}
+	break;
+    case Pgp::G2:
+	{
+	    PgpStatus status[8];
+	    
+	    pgp->readStatus(&status[0]);
+	    printf("Checking link status of %s:\n", name);
+	    printf("    Local: ");
+	    for (int i=0; i<4; i++) {
+		printf(" %2d", status[i].locLinkReady);
+	    }
+	    printf("\n");
+	    printf("    Remote:");
+	    for (int i=0; i<4; i++) {
+		printf(" %2d", status[i].remLinkReady);
+	    }
+	    printf("\n");
+	}
+	break;
+    case Pgp::DataDev:
+	{
+	    PgpStatus status[8];
+	    
+	    pgp->readStatus(&status[0]);
+	    printf("Checking link status of %s:\n", name);
+	    printf("    Local: ");
+	    for (int i=0; i<4; i++) {
+		printf(" %2d", status[i].locLinkReady);
+	    }
+	    printf("\n");
+	    printf("    Remote:");
+	    for (int i=0; i<4; i++) {
+		printf(" %2d", status[i].remLinkReady);
+	    }
+	    printf("\n");
+	}
+    default:
+	printf("Checking the link status of cards of type %d is unsupported!",
+	       pgp->type());
+    }
+}
+
 void PgpRegister(char *name, int lane, int vcm, int srpV3)
 {
     PGPCARD  *pdevice = NULL;
@@ -812,11 +882,18 @@ static void PgpRegisterCall(const iocshArgBuf * args)
     PgpRegister(args[0].sval, args[1].ival, args[2].ival, args[3].ival);
 }
 
+static const iocshArg PgpStatusArg0 = {"name"   ,    iocshArgString};
+static const iocshArg *const PgpStatusArgs[1] = {
+    &PgpStatusArg0,
+};
+static const iocshFuncDef PgpStatusDef = {"PgpStatus", 1, PgpStatusArgs};
+
 /* Registration APIs */
 static void drvPGPRegister()
 {
     /* register APIs */
     iocshRegister(	&PgpRegisterDef,	PgpRegisterCall );
+    iocshRegister(	&PgpStatusDef,   	PgpStatusCall   );
 }
 epicsExportRegistrar(drvPGPRegister);
 epicsExportAddress(int, PGP_reg_debug);
