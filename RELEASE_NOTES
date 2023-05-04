@@ -1,6 +1,9 @@
 #
 # RELEASE_NOTES
 #
+R1.7.1  2023-05-04      Michael C. Browne
+        Add PgpStatus command, and clean up a little bit.
+
 R1.3.1  2019-04-09      Michael C. Browne
         Update versions and get rid of 32-bit build.
 
