@@ -1,3 +1,4 @@
+#define USE_TYPED_RSET
 #include<epicsExport.h>
 #include<registryFunction.h>
 #include<epicsStdio.h>
