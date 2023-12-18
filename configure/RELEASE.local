@@ -16,7 +16,7 @@
 # ==========================================================
 IOCADMIN_MODULE_VERSION = R3.1.16-1.1.0
 AUTOSAVE_MODULE_VERSION = R5.8-2.1.0
-EVENT2_MODULE_VERSION   = R5.5.0
+EVENT2_MODULE_VERSION   = R6.0.2
 TIMESYNC_MODULE_VERSION = R2.0.5
 
 # ==========================================================

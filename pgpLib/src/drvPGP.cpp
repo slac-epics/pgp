@@ -768,6 +768,10 @@ static long read_wf(void *record)
         r->nsev = INVALID_ALARM;
         return -1;
     }
+    if (pgp->src.data->size > (int) r->nelm) {
+	printf("PGP size = %d, nelm = %d?\n", pgp->src.data->size, r->nelm);
+	pgp->src.data->size = r->nelm;
+    }
     memcpy(r->bptr, pgp->src.data->data, pgp->src.data->size * sizeof(unsigned));
     r->nord = pgp->src.data->size;
     r->udf = FALSE;
