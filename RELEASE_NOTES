@@ -1,6 +1,9 @@
 #
 # RELEASE_NOTES
 #
+R1.8.1  2024-10-17	Jeremy J. Lorelli
+	Build against iocAdmin/R3.1.16-1.4.0
+
 R1.7.1  2023-05-04      Michael C. Browne
         Add PgpStatus command, and clean up a little bit.
 
