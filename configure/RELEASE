@@ -10,12 +10,6 @@
 ifeq ($(wildcard $(EPICS_BASE)/include),)
 $(error Invalid EPICS_BASE: $(EPICS_BASE))
 endif
-ifeq ($(wildcard $(IOCADMIN)/include),)
-$(error Invalid IOCADMIN: $(IOCADMIN))
-endif
-ifeq ($(wildcard $(AUTOSAVE)/include),)
-$(error Invalid AUTOSAVE: $(AUTOSAVE))
-endif
 ifeq ($(wildcard $(EVENT2)/include),)
 $(error Invalid EVENT2: $(EVENT2))
 endif

@@ -14,8 +14,6 @@
 # ==========================================================
 # Define the version strings for all needed modules
 # ==========================================================
-IOCADMIN_MODULE_VERSION = R3.1.16-1.4.0
-AUTOSAVE_MODULE_VERSION = R5.11-2.0.0
 EVENT2_MODULE_VERSION   = R6.0.2
 TIMESYNC_MODULE_VERSION = R2.0.5
 
@@ -32,8 +30,6 @@ TIMESYNC_MODULE_VERSION = R2.0.5
 #
 # If your build fails, look for these paths in your build output
 # ==========================================================
-IOCADMIN    = $(EPICS_MODULES)/iocAdmin/$(IOCADMIN_MODULE_VERSION)
-AUTOSAVE    = $(EPICS_MODULES)/autosave/$(AUTOSAVE_MODULE_VERSION)
 EVENT2      = $(EPICS_MODULES)/event2/$(EVENT2_MODULE_VERSION)
 TIMESYNC    = $(EPICS_MODULES)/timesync/$(TIMESYNC_MODULE_VERSION)
 
