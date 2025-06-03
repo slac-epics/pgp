@@ -1,6 +1,9 @@
 #
 # RELEASE_NOTES
 #
+R1.8.3  2025-06-03  Jeremy J. Lorelli
+    Remove dependence on iocAdmin and autosave
+
 R1.8.2  2024-12-06  Jeremy J. Lorelli
     Build against autosave/R5.11-2.0.0
 
