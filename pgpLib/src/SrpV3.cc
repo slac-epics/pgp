@@ -20,18 +20,7 @@ enum {Success=0, Failure=1};
 
 static const unsigned SelectSleepTimeUSec=100000;
 
-static void printError(unsigned error, unsigned dest)
-{
-  printf("SrpV3::read error eofe(%s), fifo(%s), len(%s), bus%s\n",
-         error & PGP_ERR_EOFE ? "true" : "false",
-         error & DMA_ERR_FIFO ? "true" : "false",
-         error & DMA_ERR_LEN ? "true" : "false",
-         error & DMA_ERR_BUS ? "true" : "false");
-  printf("\tpgpLane(%u), pgpVc(%u)\n", pgpGetLane(dest), pgpGetVc(dest));
-}
-
 RegisterSlaveFrame::RegisterSlaveFrame(Pds::Pgp::PgpRSBits::opcode oc,
-                                       Destination* dest,
                                        uint64_t     addr,
                                        unsigned     tid,
                                        uint32_t     size) :
@@ -49,9 +38,9 @@ void RegisterSlaveFrame::print(unsigned nw) const {
   printf("\n");
 }
 
-Protocol::Protocol(int fd, unsigned lane) :
-  _fd    (fd),
-  _lane  (lane)
+Protocol::Protocol(int fd, bool usesDataDriver) :
+  _fd(fd),
+  _usesDataDriver(usesDataDriver)
 {
   memset(_readBuffer, 0, BufferWords*sizeof(unsigned));
 }
@@ -90,8 +79,14 @@ Pds::Pgp::RegisterSlaveImportFrame* Protocol::read(unsigned size)
           reinterpret_cast<SrpV3::RegisterSlaveFrame*>(_readBuffer);
         if (rsf->opcode() == PgpRSBits::read) {
           found = true;
+          Destination dest(usesDataDriver(), pgpCardRx.dest);
           if (pgpCardRx.error) {
-            printError(pgpCardRx.error, pgpCardRx.dest);
+            printf("SrpV3::read error eofe(%s), fifo(%s), len(%s), bus%s\n",
+                   pgpCardRx.error & PGP_ERR_EOFE ? "true" : "false",
+                   pgpCardRx.error & DMA_ERR_FIFO ? "true" : "false",
+                   pgpCardRx.error & DMA_ERR_LEN ? "true" : "false",
+                   pgpCardRx.error & DMA_ERR_BUS ? "true" : "false");
+            printf("\tpgpLane(%u), pgpVc(%u)\n", dest.lane(), dest.vc());
           } else {
             //            rsf->print(pgpCardRx.ret/sizeof(uint32_t));
             // Sometimes we are missing the trailing word
@@ -117,7 +112,6 @@ Pds::Pgp::RegisterSlaveImportFrame* Protocol::read(unsigned size)
                 // Format the SrpV0 frame header
                 SrpV3::RegisterSlaveFrame rsfv = *rsf;
                 ret = reinterpret_cast<Pds::Pgp::RegisterSlaveImportFrame*>(_readBuffer+3);
-                Destination dest(pgpCardRx.dest);
                 ret->bits._vc      = dest.vc();
                 ret->bits.mbz      = 0;
                 ret->bits._lane    = dest.lane();
@@ -136,8 +130,9 @@ Pds::Pgp::RegisterSlaveImportFrame* Protocol::read(unsigned size)
     } else {
       found = true;  // we might as well give up!
       if (sret < 0) {
+        Destination dest(usesDataDriver(), pgpCardRx.dest);
         perror("SrpV3::read select error: ");
-        printf("\tpgpLane(%u), pgpVc(%u)\n", pgpCardRx.dest>>2, pgpCardRx.dest&3);
+        printf("\tpgpLane(%u), pgpVc(%u)\n", dest.lane(), dest.vc());
       } else {
         printf("SrpV3::read select timed out! fd[%u]\n", _fd);
       }
@@ -146,19 +141,18 @@ Pds::Pgp::RegisterSlaveImportFrame* Protocol::read(unsigned size)
   return ret;
 }
 
-unsigned Protocol::writeRegister(Destination* dest,
-                                 unsigned     addr,
-                                 uint32_t     data) {
+unsigned Protocol::writeRegister(const Destination& dest,
+                                 unsigned           addr,
+                                 uint32_t           data) {
 #ifdef DBUG
-  printf("SrpV3::writeRegister dest_lane[%x] addr[%x] fd[%u] proto_lane[%u] this[%p]\n",
-         dest->lane(), addr, _fd, _lane, this);
+  printf("SrpV3::writeRegister lane[%x] vc[%x] addr[%x] fd[%u] this[%p]\n",
+         dest.lane(), dest.vc(), addr, _fd, this);
 #endif
 
   unsigned tid = 0x6969;
   unsigned size = 1;
   SrpV3::RegisterSlaveFrame* hdr = 
     new (_writeBuffer) SrpV3::RegisterSlaveFrame(PgpRSBits::write, 
-                                                 dest, 
                                                  addr, 
                                                  tid, 
                                                  size);
@@ -176,7 +170,7 @@ unsigned Protocol::writeRegister(Destination* dest,
   struct DmaWriteData  pgpCardTx;
   pgpCardTx.is32   = (sizeof(&pgpCardTx) == 4);
   pgpCardTx.flags  = 0;
-  pgpCardTx.dest   = dest->vc() | ((dest->lane() + _lane)<<2);
+  pgpCardTx.dest   = dest.dest();
   pgpCardTx.index  = 0;
   pgpCardTx.size   = sizeof(*hdr) + size*sizeof(uint32_t);
   pgpCardTx.data   = (__u64)hdr;
@@ -195,17 +189,17 @@ unsigned Protocol::writeRegister(Destination* dest,
   return Success;
 }
 
-unsigned Protocol::readRegister(Destination* dest,
-                                unsigned addr,
-                                unsigned tid,
-                                uint32_t* retp,
-                                unsigned size) {
+unsigned Protocol::readRegister(const Destination& dest,
+                                unsigned           addr,
+                                unsigned           tid,
+                                uint32_t*          retp,
+                                unsigned           size) {
 #ifdef DBUG
-  printf("SrpV3::readRegister dest_lane[%u] addr[%u] fd[%u] this[%p]\n",
-         dest->lane(), addr, _fd, this);
+  printf("SrpV3::writeRegister lane[%x] vc[%x] addr[%x] fd[%u] this[%p]\n",
+         dest.lane(), dest.vc(), addr, _fd, this);
 #endif
 
-  SrpV3::RegisterSlaveFrame hdr(PgpRSBits::read, dest, addr, tid, size);
+  SrpV3::RegisterSlaveFrame hdr(PgpRSBits::read, addr, tid, size);
   // post
   // Wait for write ready
   struct timeval  timeout;
@@ -218,7 +212,7 @@ unsigned Protocol::readRegister(Destination* dest,
   struct DmaWriteData  pgpCardTx;
   pgpCardTx.is32   = (sizeof(&pgpCardTx) == 4);
   pgpCardTx.flags  = 0;
-  pgpCardTx.dest   = dest->vc() | ((dest->lane() + _lane)<<2);
+  pgpCardTx.dest   = dest.dest();
   pgpCardTx.index  = 0;
   pgpCardTx.size   = sizeof(hdr);
   pgpCardTx.data   = (__u64)&hdr;
@@ -244,7 +238,7 @@ unsigned Protocol::readRegister(Destination* dest,
     }
     if ((addr&0x3fffffff) != rsif->addr()) {  // Can only test lowest 24 bits of addr
       printf("SrpV3::readRegister out of order response lane=%u, vc=%u, addr=0x%x(0x%x), tid=0x%x(0x%x), errorCount=%u\n",
-             dest->lane(), dest->vc(), addr, rsif->addr(), tid, rsif->tid(), ++errorCount);
+             dest.lane(), dest.vc(), addr, rsif->addr(), tid, rsif->tid(), ++errorCount);
       if (errorCount > 5) return Failure;
     } else {  // copy the data
       memcpy(retp, rsif->array(), size * sizeof(uint32_t));
@@ -253,19 +247,18 @@ unsigned Protocol::readRegister(Destination* dest,
   }
 }
 
-unsigned Protocol::writeRegisterBlock(Destination* dest,
-                                      unsigned     addr,
-                                      uint32_t*    data,
-                                      unsigned     size) {
+unsigned Protocol::writeRegisterBlock(const Destination& dest,
+                                      unsigned           addr,
+                                      uint32_t*          data,
+                                      unsigned           size) {
 #ifdef DBUG
-  printf("SrpV3::writeRegister dest_lane[%x] addr[%x] fd[%u] proto_lane[%u] this[%p]\n",
-         dest->lane(), addr, _fd, _lane, this);
+  printf("SrpV3::writeRegister lane[%x] vc[%x] addr[%x] fd[%u] this[%p]\n",
+         dest.lane(), dest.vc(), addr, _fd, this);
 #endif
 
   unsigned tid = 0x6970;
   SrpV3::RegisterSlaveFrame* hdr =
     new (_writeBuffer) SrpV3::RegisterSlaveFrame(PgpRSBits::write,
-                                                 dest,
                                                  addr,
                                                  tid,
                                                  size);
@@ -283,7 +276,7 @@ unsigned Protocol::writeRegisterBlock(Destination* dest,
   struct DmaWriteData  pgpCardTx;
   pgpCardTx.is32   = (sizeof(&pgpCardTx) == 4);
   pgpCardTx.flags  = 0;
-  pgpCardTx.dest   = dest->vc() | ((dest->lane() + _lane)<<2);
+  pgpCardTx.dest   = dest.dest();
   pgpCardTx.index  = 0;
   pgpCardTx.size   = sizeof(*hdr) + size*sizeof(uint32_t);
   pgpCardTx.data   = (__u64)hdr;

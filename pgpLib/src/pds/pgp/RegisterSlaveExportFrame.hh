@@ -24,12 +24,11 @@ namespace Pds {
         enum masks {addrMask=(1<<30)-1};
 
         RegisterSlaveExportFrame(
-            Pgp *pgp,
-            PgpRSBits::opcode,   // opcode
-            Destination* dest,   // Destination
-            unsigned,            // address
-            unsigned,            // transaction ID
-            uint32_t=0,          // data
+            PgpRSBits::opcode,        // opcode
+            const Destination& dest,  // Destination
+            unsigned,                 // address
+            unsigned,                 // transaction ID
+            uint32_t=0,               // data
             PgpRSBits::waitState=PgpRSBits::notWaiting);
 
         ~RegisterSlaveExportFrame() {};
@@ -42,7 +41,7 @@ namespace Pds {
         unsigned tid()                            {return bits._tid;}
         void waiting(PgpRSBits::waitState w)      {bits._waiting = w;}
         uint32_t* array()                         {return (uint32_t*)&_data;}
-        unsigned post(int _fd, __u32 size, bool pf=false);  // the size of the entire header + payload in number of 32 bit words
+        unsigned post(Pgp *pgp, __u32 size, bool pf=false);  // the size of the entire header + payload in number of 32 bit words
         void print(unsigned = 0, unsigned = 4);
 
 

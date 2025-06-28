@@ -24,6 +24,7 @@ HTMLS_DIR	= .
 # Add any source files here
 # Note: No lib will be built if no sources are listed here
 LIBSRCS += drvPGP.cpp
+LIBSRCS += Destination.cc
 LIBSRCS += Pgp.cc
 LIBSRCS += SrpV3.cc
 LIBSRCS += Kcu1500Regs.cpp

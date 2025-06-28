@@ -15,7 +15,6 @@ namespace Pds {
       public:
         RegisterSlaveFrame(
             PgpRSBits::opcode,   // opcode
-            Destination* dest,   // Destination
             uint64_t,            // address
             unsigned,            // transaction ID
             uint32_t=0);         // data
@@ -38,28 +37,28 @@ namespace Pds {
 
       class Protocol {
       public:
-        Protocol(int fd, unsigned lane);
+        Protocol(int fd, bool usesDataDriver);
       public:
-        unsigned      writeRegister( Destination* dest,
-                                     unsigned     addr,
-                                     uint32_t     val);
-        unsigned      readRegister( Destination* dest,
-                                    unsigned     addr,
-                                    unsigned     tid,
-                                    uint32_t*    retp,
-                                    unsigned     size=1);
-        unsigned      writeRegisterBlock( Destination* dest,
-                                          unsigned     addr,
-                                          uint32_t*    val,
-                                          unsigned     size);
+        unsigned      writeRegister( const Destination& dest,
+                                     unsigned           addr,
+                                     uint32_t           val);
+        unsigned      readRegister( const Destination& dest,
+                                    unsigned           addr,
+                                    unsigned           tid,
+                                    uint32_t*          retp,
+                                    unsigned           size=1);
+        unsigned      writeRegisterBlock( const Destination& dest,
+                                          unsigned           addr,
+                                          uint32_t*          val,
+                                          unsigned           size);
         RegisterSlaveImportFrame*  read(unsigned size);
       public:
-        int       fd  () const { return _fd; }
-        unsigned  lane() const { return _lane; }
+        int       fd() const { return _fd; }
+        unsigned  usesDataDriver() const { return _usesDataDriver; }
       private:
         enum {BufferWords=8192};
         int                    _fd;
-        unsigned               _lane;
+        bool                   _usesDataDriver;
         unsigned               _readBuffer [BufferWords];
         unsigned               _writeBuffer[BufferWords];
       };
