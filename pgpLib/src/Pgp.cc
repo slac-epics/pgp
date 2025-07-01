@@ -27,7 +27,7 @@ namespace Pds {
       _kcu(NULL)
     {
       char devName[128];
-      char err[128];
+      char err[256];
       sprintf(devName, "/dev/pgpcard_%u", mask & 0xf);
       if ( access( devName, F_OK ) != -1 ) {
         _type = G2;
@@ -43,7 +43,7 @@ namespace Pds {
       printf("Opening %s\n", devName);
       _fd = open( devName,  O_RDWR | O_NONBLOCK);
       if (_fd < 0) {
-        sprintf(err, "Pgp::Pgp() opening %s failed", devName);
+        snprintf(err, sizeof(err), "Pgp::Pgp() opening %s failed", devName);
         perror(err);
         throw "Can't open file";
       }

@@ -156,7 +156,7 @@ unsigned Protocol::writeRegister(const Destination& dest,
                                                  addr, 
                                                  tid, 
                                                  size);
-  memcpy(hdr+1, &data, size*sizeof(uint32_t));
+  memcpy(static_cast<void*>(hdr+1), &data, size*sizeof(uint32_t));
 
   // post
   // Wait for write ready
@@ -262,7 +262,7 @@ unsigned Protocol::writeRegisterBlock(const Destination& dest,
                                                  addr,
                                                  tid,
                                                  size);
-  memcpy(hdr+1, data, size*sizeof(uint32_t));
+  memcpy(static_cast<void*>(hdr+1), data, size*sizeof(uint32_t));
 
   // post
   // Wait for write ready
