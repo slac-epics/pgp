@@ -1,6 +1,9 @@
 #
 # RELEASE_NOTES
 #
+R1.9.0  2025-07-22  Daniel Damiani
+    Fix how the dest is calculated from lane and vc for datadev driver
+
 R1.8.3  2025-06-03  Jeremy J. Lorelli
     Remove dependence on iocAdmin and autosave
 
