@@ -21,9 +21,8 @@ namespace Pds {
     unsigned  RegisterSlaveExportFrame::errors = 0;
 
     RegisterSlaveExportFrame::RegisterSlaveExportFrame(
-        Pgp *pgp,                                                       
         PgpRSBits::opcode o,
-        Destination* dest,
+        const Destination& dest,
         unsigned a,
         unsigned transID,
         uint32_t da,
@@ -32,9 +31,9 @@ namespace Pds {
       bits._tid     = transID & ((1<<23)-1);
       bits._waiting = w;
 //      printf("RegisterSlaveExportFrame::RegisterSlaveExportFrame() lane %u offset %u\n", dest->lane(), pgp->portOffset());
-      bits._lane   = (dest->lane() & (pgp->isG3() ? 7 : 3)) + pgp->portOffset();
+      bits._lane   = dest.lane();
       bits.mbz     = 0;
-      bits._vc     = dest->vc() & 3;
+      bits._vc     = dest.vc();
       bits.oc      = o;
       bits._addr   = a & addrMask;
       _data        = da;  // NB, for read request size of block requested minus one is placed in data field
@@ -42,15 +41,16 @@ namespace Pds {
     }
 
     // parameter is the size of the post in number of 32 bit words
-    unsigned RegisterSlaveExportFrame::post(int _fd, __u32 size, bool pf) {
+    unsigned RegisterSlaveExportFrame::post(Pgp *pgp, __u32 size, bool pf) {
       struct timeval  timeout;
       DmaWriteData    dmaWriteData;
       int             ret;
       fd_set          fds;
+      int             _fd = pgp->fd();
 
       dmaWriteData.is32   = (sizeof(&dmaWriteData) == 4);
       dmaWriteData.flags  = 0;
-      dmaWriteData.dest   = this->bits._vc | (this->bits._lane<<2);
+      dmaWriteData.dest   = Destination(pgp->usesDataDriver(), this->bits._lane, this->bits._vc).dest();
       dmaWriteData.index  = 0;
       dmaWriteData.size   = size * sizeof(uint32_t);
       dmaWriteData.data   = (__u64)this;

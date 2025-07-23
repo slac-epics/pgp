@@ -33,23 +33,23 @@ namespace Pds {
         Pds::Pgp::RegisterSlaveImportFrame* read(
                           unsigned size = (sizeof(Pds::Pgp::RegisterSlaveImportFrame)/sizeof(uint32_t)));
         unsigned       writeData(
-                          Destination*,
+                          Destination,
                           uint32_t,
                           bool pf=false);
         unsigned       writeDataBlock(
-                          Destination*,
+                          Destination,
                           uint32_t*,
                           unsigned size,
                           bool pf=false);
         unsigned       writeRegister(
-                          Destination*,
+                          Destination,
                           unsigned,
                           uint32_t,
                           bool pf = false,
                           Pds::Pgp::PgpRSBits::waitState = Pds::Pgp::PgpRSBits::notWaiting);
         // NB size should be the size of data to be written in uint32_t's
         unsigned       writeRegisterBlock(
-                          Destination*,
+                          Destination,
                           unsigned,
                           uint32_t*,
                           unsigned size = 1,
@@ -58,7 +58,7 @@ namespace Pds {
 
         // NB size should be the size of the block requested in uint32_t's
         unsigned      readRegister(
-                          Destination*,
+                          Destination,
                           unsigned,
                           unsigned,
                           uint32_t*,
@@ -71,7 +71,7 @@ namespace Pds {
                           bool printFlag=false);
         unsigned      readStatus( void * );
         unsigned      flushInputQueue(bool printFlag=false);
-        unsigned      lastWriteData(Destination*, uint32_t*);
+        unsigned      lastWriteData(Destination, uint32_t*);
 
         void          portOffset(unsigned p) { _portOffset = p;    }
         unsigned      portOffset() const     { return _portOffset; }

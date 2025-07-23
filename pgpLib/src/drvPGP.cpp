@@ -176,7 +176,7 @@ public:
             cfg[seq].lane = lane;
             cfg[seq].vc   = vc;
             cfg[seq].addr = addr;
-            cfg[seq].dest = new Destination((lane << 2) | (vc & 3));
+            cfg[seq].dest = new Destination(pgp->usesDataDriver(), lane, vc);
         }
     }
     void addCfgOut(struct longoutRecord *r, int lane, int vc, int addr, int seq) {
@@ -186,7 +186,7 @@ public:
             cfg[seq].lane = lane;
             cfg[seq].vc   = vc;
             cfg[seq].addr = addr;
-            cfg[seq].dest = new Destination((lane << 2) | (vc & 3));
+            cfg[seq].dest = new Destination(pgp->usesDataDriver(), lane, vc);
         }
     }
     void *addSrc(int lane, int vc, char *trigger, PGP_rcvfunc rcvfunc, PGP_enfunc enfunc, void *dev_token) {
@@ -243,10 +243,10 @@ public:
             if (cfg[i].val) {
                 if (cfg[i].addr == Pgp::DirectWrite) {
                   printf("%d: Writing 0x%x directly to vc %d\n", i, cfg[i].val->val, cfg[i].vc);
-                  pgp->writeData(cfg[i].dest, cfg[i].val->val, PGP_reg_debug);
+                  pgp->writeData(*cfg[i].dest, cfg[i].val->val, PGP_reg_debug);
                 } else {
                   printf("%d: Writing 0x%x to address %d\n", i, cfg[i].val->val, cfg[i].addr);
-                  pgp->writeRegister(cfg[i].dest, cfg[i].addr, cfg[i].val->val, PGP_reg_debug, PgpRSBits::notWaiting);
+                  pgp->writeRegister(*cfg[i].dest, cfg[i].addr, cfg[i].val->val, PGP_reg_debug, PgpRSBits::notWaiting);
                 }
             } else {
                 printf("%d: WARNING: No write entry!!\n", i);
@@ -255,9 +255,9 @@ public:
         for (i = 0; i <= cfgmax; i++) {
             if (cfg[i].rbv && cfg[i].addr != Pgp::DirectWrite) {
                 if (cfg[i].addr == Pgp::DirectWrite) {
-                  pgp->lastWriteData(cfg[i].dest, &val);
+                  pgp->lastWriteData(*cfg[i].dest, &val);
                 } else {
-                  pgp->readRegister(cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
+                  pgp->readRegister(*cfg[i].dest, cfg[i].addr, 0x4200 + i, &val, 1, PGP_reg_debug);
                 }
                 printf("Read 0x%x from address %d\n", val, cfg[i].addr);
                 cfg[i].rbv->val = val;
@@ -375,19 +375,19 @@ void PGP_receive_data(void *pgp_token, pgp_data *data) {
 unsigned PGP_register_write(void *pgp_token, int lane, int vc, unsigned addr, unsigned val)
 {
     PGPCARD *pgp = (PGPCARD *)pgp_token;
-    Destination d((lane << 2) | (vc & 3));
+    Destination d(pgp->pgp->usesDataDriver(), lane, vc);
 
     printf("Writing 0x%x to address %d\n", val, addr);
-    return pgp->pgp->writeRegister(&d, addr, val, PGP_reg_debug, PgpRSBits::notWaiting);
+    return pgp->pgp->writeRegister(d, addr, val, PGP_reg_debug, PgpRSBits::notWaiting);
 }
 
 unsigned PGP_register_read(void *pgp_token, int lane, int vc, unsigned addr, unsigned *val)
 {
     PGPCARD *pgp = (PGPCARD *)pgp_token;
-    Destination d((lane << 2) | (vc & 3));
+    Destination d(pgp->pgp->usesDataDriver(), lane, vc);
     unsigned result;
 
-    result = pgp->pgp->readRegister(&d, addr, (lane << 12) + (vc << 8) + addr, val, 1, PGP_reg_debug);
+    result = pgp->pgp->readRegister(d, addr, (lane << 12) + (vc << 8) + addr, val, 1, PGP_reg_debug);
     if (!result)
         printf("Read 0x%x from address %d\n", *val, addr);
     else
@@ -398,23 +398,23 @@ unsigned PGP_register_read(void *pgp_token, int lane, int vc, unsigned addr, uns
 unsigned PGP_write_data(void *pgp_token, int lane, int vc, unsigned val)
 {
     PGPCARD *pgp = (PGPCARD *)pgp_token;
-    Destination d((lane << 2) | (vc & 3));
+    Destination d(pgp->pgp->usesDataDriver(), lane, vc);
 
     printf("Writing 0x%x to vc %d\n", val, vc);
-    return pgp->pgp->writeData(&d, val, PGP_reg_debug);
+    return pgp->pgp->writeData(d, val, PGP_reg_debug);
 }
 
 unsigned PGP_write_data_bulk(void *pgp_token, int lane, int vc, unsigned* data, unsigned size)
 {
     PGPCARD *pgp = (PGPCARD *)pgp_token;
-    Destination d((lane << 2) | (vc & 3));
+    Destination d(pgp->pgp->usesDataDriver(), lane, vc);
 
     printf("Writing");
     for (unsigned i=0; i<size; i++) {
       printf(" 0x%x", data[i]);
     }
     printf(" to vc %d\n", vc);
-    return pgp->pgp->writeDataBlock(&d, data, size, PGP_reg_debug);
+    return pgp->pgp->writeDataBlock(d, data, size, PGP_reg_debug);
 }
 
 void PGP_pause(void *pgp_token)
@@ -436,11 +436,10 @@ void PGP_readreg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int* 
         printf("PGP_writereg: illegal vcm = %x\n", vcm);
         return;
     }
-    Destination d(bit[vcm]); // Lane is always zero! */
-    Pgp *pgp = NULL;
     try {
-        pgp = new Pgp(mask, vcm, srpV3);
-        pgp->readRegister(&d, addr, 0x4200, value, 1, PGP_reg_debug);
+        Pgp *pgp = new Pgp(mask, vcm, srpV3);
+        Destination d(pgp->usesDataDriver(), bit[vcm]); // Lane is always zero! */
+        pgp->readRegister(d, addr, 0x4200, value, 1, PGP_reg_debug);
         delete pgp;
     }
     catch(char const *s) {
@@ -454,13 +453,11 @@ void PGP_readreg_bulk(int mask, int vcm, int srpV3, pgp_reg_rdata* reg_data, uns
         printf("PGP_writereg: illegal vcm = %x\n", vcm);
         return;
     }
-    Destination d(bit[vcm]); // Lane is always zero! */
-    Pgp *pgp = NULL;
-    unsigned int i;
     try {
-        pgp = new Pgp(mask, vcm, srpV3);
-        for(i=0; i<size; i++) {
-            pgp->readRegister(&d, reg_data[i].addr, 0x4200 + i, reg_data[i].value, reg_data[i].size, PGP_reg_debug);
+        Pgp *pgp = new Pgp(mask, vcm, srpV3);
+        Destination d(pgp->usesDataDriver(), bit[vcm]); // Lane is always zero! */
+        for(unsigned int i=0; i<size; i++) {
+            pgp->readRegister(d, reg_data[i].addr, 0x4200 + i, reg_data[i].value, reg_data[i].size, PGP_reg_debug);
         }
         delete pgp;
     }
@@ -475,11 +472,10 @@ void PGP_writereg(int mask, int vcm, int srpV3, unsigned int addr, unsigned int 
         printf("PGP_writereg: illegal vcm = %x\n", vcm);
         return;
     }
-    Destination d(bit[vcm]); // Lane is always zero! */
-    Pgp *pgp = NULL;
     try {
-        pgp = new Pgp(mask, vcm, srpV3);
-        pgp->writeRegister(&d, addr, value, PGP_reg_debug, PgpRSBits::notWaiting);
+        Pgp *pgp = new Pgp(mask, vcm, srpV3);
+        Destination d(pgp->usesDataDriver(), bit[vcm]); // Lane is always zero! */
+        pgp->writeRegister(d, addr, value, PGP_reg_debug, PgpRSBits::notWaiting);
         delete pgp;
     }
     catch(char const *s) {
@@ -493,13 +489,11 @@ void PGP_writereg_bulk(int mask, int vcm, int srpV3, pgp_reg_data* reg_data, uns
         printf("PGP_writereg: illegal vcm = %x\n", vcm);
         return;
     }
-    Destination d(bit[vcm]); // Lane is always zero! */
-    Pgp *pgp = NULL;
-    unsigned int i;
     try {
-        pgp = new Pgp(mask, vcm, srpV3);
-        for (i=0; i<size; i++) {
-          pgp->writeRegister(&d, reg_data[i].addr, reg_data[i].value, PGP_reg_debug, PgpRSBits::notWaiting);
+        Pgp *pgp = new Pgp(mask, vcm, srpV3);
+        Destination d(pgp->usesDataDriver(), bit[vcm]); // Lane is always zero! */
+        for (unsigned int i=0; i<size; i++) {
+          pgp->writeRegister(d, reg_data[i].addr, reg_data[i].value, PGP_reg_debug, PgpRSBits::notWaiting);
         }
         delete pgp;
     }
@@ -514,11 +508,10 @@ void PGP_writedata(int mask, int vcm, unsigned int* data, unsigned int size)
     printf("PGP_writereg: illegal vcm = %x\n", vcm);
     return;
   }
-  Destination d(bit[vcm]); // Lane is always zero! */
-  Pgp *pgp = NULL;
   try {
-    pgp = new Pgp(mask, vcm, false);
-    pgp->writeDataBlock(&d, data, size, PGP_reg_debug);
+    Pgp *pgp = new Pgp(mask, vcm, false);
+    Destination d(pgp->usesDataDriver(), bit[vcm]); // Lane is always zero! */
+    pgp->writeDataBlock(d, data, size, PGP_reg_debug);
     delete pgp;
   }
   catch(char const *s) {
